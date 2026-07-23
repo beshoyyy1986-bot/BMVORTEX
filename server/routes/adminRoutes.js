@@ -5,7 +5,15 @@ import multer from 'multer';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://bptdnmwgcnkmdeefscmh.supabase.co';
+// ── Server-side Supabase credentials (service role — never sent to the browser)
+// Keys are loaded from environment variables only — never hardcoded here.
+//
+// For local development: copy .env.example → .env.local and fill in values.
+// For Vercel deployment: add these in Project Settings → Environment Variables.
+//
+//   SUPABASE_URL              (server-side)
+//   SUPABASE_SERVICE_ROLE_KEY (server-side, keep secret — this is the secret key)
+const SUPABASE_URL = process.env.SUPABASE_URL;
 
 const ALL_TOOL_TYPES = [
   'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
@@ -21,9 +29,15 @@ const PLAN_DEFAULTS = {
 };
 
 function getAdminClient() {
+  const url = SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
-  return createClient(SUPABASE_URL, key, {
+  if (!url || !key) {
+    throw new Error(
+      '[VORTEX] Missing server env vars: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY ' +
+      'must be set in Vercel Project Settings → Environment Variables.'
+    );
+  }
+  return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 }

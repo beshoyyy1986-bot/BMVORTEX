@@ -352,7 +352,12 @@ export default function SecureDashboardApp() {
   const [frozen, setFrozen]       = useState(false);
 
   const MASTER_ADMIN_PASSWORD = "Vortex@2024Admin";
-  const OWNER_EMAIL = "BESHOYYY1986@GMAIL.COM";
+  // All emails in this list are treated as permanent site owners — they can
+  // never be frozen, security-locked, or restricted by any admin action.
+  const OWNER_EMAILS = [
+    "beshoyyy1986@gmail.com",
+    "beshoyyy1986@outlook.com",
+  ];
   const SECURITY_LOCK_MARKER = "LOCKED";
   const isDark = theme === "dark";
 
@@ -419,13 +424,17 @@ export default function SecureDashboardApp() {
         filter: `id=eq.${session.user.id}` },
         (payload) => {
           const data = payload.new;
-          if (data.is_frozen) { setFrozen(true); supabase.auth.signOut(); return; }
-          if (data.current_session_id === SECURITY_LOCK_MARKER) {
-            setSecurityLocked(true); supabase.auth.signOut(); return;
-          }
-          const localSid = sessionStorage.getItem("vortex_sid");
-          if (data.current_session_id && localSid && data.current_session_id !== localSid) {
-            setMsg(t("logged_in_elsewhere")); supabase.auth.signOut(); return;
+          const realtimeEmail = (data.email || session?.user?.email || "").toLowerCase();
+          const isOwnerRT = OWNER_EMAILS.includes(realtimeEmail);
+          if (!isOwnerRT) {
+            if (data.is_frozen) { setFrozen(true); supabase.auth.signOut(); return; }
+            if (data.current_session_id === SECURITY_LOCK_MARKER) {
+              setSecurityLocked(true); supabase.auth.signOut(); return;
+            }
+            const localSid = sessionStorage.getItem("vortex_sid");
+            if (data.current_session_id && localSid && data.current_session_id !== localSid) {
+              setMsg(t("logged_in_elsewhere")); supabase.auth.signOut(); return;
+            }
           }
           setUserInfo(prev => ({ ...data, avatar_url: data.avatar_url || prev.avatar_url }));
         })
@@ -438,6 +447,8 @@ export default function SecureDashboardApp() {
   useEffect(() => {
     if (!session?.user) return;
     const localSid = sessionStorage.getItem("vortex_sid");
+    const heartbeatEmail = (session.user.email || "").toLowerCase();
+    const isOwnerHeartbeat = OWNER_EMAILS.includes(heartbeatEmail);
     const check = async () => {
       try {
         const { data } = await supabase
@@ -446,6 +457,8 @@ export default function SecureDashboardApp() {
           .eq("id", session.user.id)
           .single();
         if (!data) return;
+        // Owners are never kicked out by heartbeat checks.
+        if (isOwnerHeartbeat) return;
         if (data.is_frozen) {
           setFrozen(true);
           supabase.auth.signOut();
@@ -478,23 +491,23 @@ export default function SecureDashboardApp() {
       ensureSupabase();
       const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (data) {
-        // Frozen accounts are blocked before anything else.
-        if (data.is_frozen) { setFrozen(true); await supabase.auth.signOut(); return; }
-        if (data.current_session_id === SECURITY_LOCK_MARKER) {
-          setSecurityLocked(true);
-          await supabase.auth.signOut();
-          return;
-        }
-        // Auto-elevate the owner. Prefer the authenticated email (always
-        // present) and fall back to the profile row — the profile column can
-        // be empty on older accounts, which used to leave the owner stuck as
-        // a normal user with no admin panel.
         const effectiveEmail = (authEmail || data.email || "").toLowerCase();
-        const isOwnerEmail = effectiveEmail === OWNER_EMAIL.toLowerCase();
-        const isOwnerRole = data.role === "owner";
+        const isOwnerEmail = OWNER_EMAILS.includes(effectiveEmail);
+        const isOwnerRole  = data.role === "owner";
+
+        // ── Owners are NEVER blocked by frozen or security-lock ──────────
+        if (!isOwnerEmail && !isOwnerRole) {
+          if (data.is_frozen) { setFrozen(true); await supabase.auth.signOut(); return; }
+          if (data.current_session_id === SECURITY_LOCK_MARKER) {
+            setSecurityLocked(true);
+            await supabase.auth.signOut();
+            return;
+          }
+        }
+
+        // Auto-elevate the owner by email — persist the role so future
+        // logins never need a re-check.
         if (isOwnerEmail && !isOwnerRole) {
-          // Persist as the real `owner` role so privilege never depends on a
-          // runtime re-check again.
           const elevated = { ...data, role: "owner", plan: "enterprise", allowed_types: mainCards.map(c => c.type) };
           setUserInfo(prev => ({ ...elevated, avatar_url: elevated.avatar_url || prev.avatar_url }));
           await supabase.from("profiles")
@@ -526,26 +539,32 @@ export default function SecureDashboardApp() {
           .eq("id", data.user.id)
           .single();
 
-        // Frozen → block immediately with the dedicated screen.
-        if (profile?.is_frozen) {
-          await supabase.auth.signOut();
-          setFrozen(true);
-          return;
-        }
+        const loginEmail = (data.user.email || loginForm.email || "").toLowerCase();
+        const isOwnerLogin = OWNER_EMAILS.includes(loginEmail);
 
-        if (profile?.current_session_id === SECURITY_LOCK_MARKER) {
-          await supabase.auth.signOut();
-          setSecurityLocked(true);
-          return;
-        }
+        // ── Owners bypass all frozen / security-lock checks ───────────────
+        if (!isOwnerLogin) {
+          // Frozen → block immediately with the dedicated screen.
+          if (profile?.is_frozen) {
+            await supabase.auth.signOut();
+            setFrozen(true);
+            return;
+          }
 
-        if (profile?.current_session_id) {
-          await supabase.from("profiles")
-            .update({ current_session_id: SECURITY_LOCK_MARKER })
-            .eq("id", data.user.id);
-          await supabase.auth.signOut();
-          setSecurityLocked(true);
-          return;
+          if (profile?.current_session_id === SECURITY_LOCK_MARKER) {
+            await supabase.auth.signOut();
+            setSecurityLocked(true);
+            return;
+          }
+
+          if (profile?.current_session_id) {
+            await supabase.from("profiles")
+              .update({ current_session_id: SECURITY_LOCK_MARKER })
+              .eq("id", data.user.id);
+            await supabase.auth.signOut();
+            setSecurityLocked(true);
+            return;
+          }
         }
 
         const sid = Date.now().toString();
@@ -991,7 +1010,7 @@ export default function SecureDashboardApp() {
     );
   }
 
-  // ── Mini Meta 2$ — standalone page ────────────────────────────
+  // ── Mini Meta 2$ — standalone page ──��─────────────────────────
   if (pathname === "/mini-meta-2") {
     return (
       <div className="min-h-screen w-full bg-[#0f0f0f]">

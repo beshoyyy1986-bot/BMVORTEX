@@ -64,11 +64,11 @@ FROM auth.users u
 WHERE p.id = u.id
   AND (p.email IS NULL OR p.email = '');
 
--- 5) Make the OWNER an actual owner with full access
+-- 5) Make BOTH owner accounts actual owners with full access
 UPDATE public.profiles
 SET role = 'owner',
     plan = 'enterprise'
-WHERE lower(email) = 'beshoyyy1986@gmail.com';
+WHERE lower(email) IN ('beshoyyy1986@gmail.com', 'beshoyyy1986@outlook.com');
 
 -- 6) Row Level Security policies
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
