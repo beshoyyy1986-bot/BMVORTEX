@@ -4,6 +4,9 @@
   "description": "",
   "main": "vite.config.js",
   "scripts": {
+    "dev": "vite --port 3001 --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -24,6 +27,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
+    "framer-motion": "^12.23.6",
+    "prop-types": "^15.8.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }
