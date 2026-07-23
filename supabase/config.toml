@@ -1,0 +1,25 @@
+project_id = "bptdnmwgcnkmdeefscmh"
+
+[auth]
+site_url = "https://vortexbm.vercel.app"
+additional_redirect_urls = [
+  "https://vortexbm.vercel.app",
+  "https://vortexbm.vercel.app/",
+  "https://vortexbm.vercel.app/**",
+  "https://vortexbm.vercel.app/reset-password"
+]
+jwt_expiry = 3600
+enable_signup = true
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+[auth.email.template.confirmation]
+subject = "أكّد حسابك في VORTEX"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "إعادة تعيين كلمة المرور — VORTEX"
+content_path = "./supabase/templates/recovery.html"

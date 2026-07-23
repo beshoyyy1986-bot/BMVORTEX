@@ -1,0 +1,30 @@
+{
+  "name": "vortex-preview-main",
+  "version": "1.0.0",
+  "description": "",
+  "main": "vite.config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bshoym57/VORTEXBM.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/bshoym57/VORTEXBM/issues"
+  },
+  "homepage": "https://github.com/bshoym57/VORTEXBM#readme",
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.4",
+    "vite": "^8.1.5"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}
