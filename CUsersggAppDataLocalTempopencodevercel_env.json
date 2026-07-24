@@ -1,0 +1,190 @@
+Vercel CLI 56.3.2 (Node.js 24.18.0) | api is in beta — https://vercel.com/feedback
+WARNING! Did you mean to deploy the subdirectory "api"? Use `vc --cwd api` instead.
+The decrypt query parameter is deprecated. Please use the `/v1/projects/:projectId/env/:envId` endpoint to retrieve the value of an environment variable.
+{
+  "envs": [
+    {
+      "type": "encrypted",
+      "value": "eyJ2IjoidjIiLCJjIjoiby84dXRqZ3BEWWdXRTdXM1kvd1ZGU0UyK05UQnRIQnJtd3UrNlB4REhUbHNvMEZwZjBNMm9SR01uU2dGenZhdDY2Y1ZXQS9LQzVKZ3g1c1VyZlRmQmZUYm9QdFUybWZYTFVQV2hObWpPV2RqbXlsQVNpMzJ0QjRlekhuREwwdU1LTnhWbjVqUG5XZ29GRFFtTEpZM0tpMVRxZHhkdDlYT2t6YmtXL0hzYWFhbFMrc2xicXhWSGJVYWRMZEEzb29RZkFIc0xBPT0iLCJrIjpbMTg0LDEsMiwzLDAsMTIwLDEwNywxMTksMTUzLDIzLDIyMywxMTcsMTgzLDEyMCw1NywxOTYsMTEsMjgsMjQ5LDExOSwxMDQsMjEzLDE2OSwxNjEsMTQxLDE0Miw5OSw2NSw0OSwyMTIsMzAsMTk5LDk3LDIwNCwyMTgsNzcsMTA1LDE3OSwxLDE1OCwxMzMsMTc0LDE1OCwyMTMsNjYsMTg1LDE3LDIzMywxODQsNDMsMCw2NywzNywxOCwyMDUsMCwwLDAsMTI2LDQ4LDEyNCw2LDksNDIsMTM0LDcyLDEzNCwyNDcsMTMsMSw3LDYsMTYwLDExMSw0OCwxMDksMiwxLDAsNDgsMTA0LDYsOSw0MiwxMzQsNzIsMTM0LDI0NywxMywxLDcsMSw0OCwzMCw2LDksOTYsMTM0LDcyLDEsMTAxLDMsNCwxLDQ2LDQ4LDE3LDQsMTIsOTksNTAsMTYzLDEwNiwyNDUsMTY0LDE0NiwxMTUsNzYsNTksMTE4LDExOCwyLDEsMTYsMTI4LDU5LDE1NiwxOTQsMTAwLDE3NCw4NiwxOTcsNzMsMjQ3LDIyOSwxMjYsMjEyLDE5NiwxMSwyMDcsMTkxLDI0NSw3MSwxMDksMTQxLDg2LDI0Niw1NCwxMTgsMjQwLDEwLDQyLDc4LDMxLDEzMSwyMzUsMTc5LDEzMCw3MSwxOTgsNDksMTU2LDIzOSw3MiwyNDcsNzUsMTA5LDEzNSwyNDUsNDQsMTgzLDI1Miw3OSwxMCwxMiwxNTcsNjksNzIsMzksMTMzLDE0MCw5MSwxNjMsMTk5LDk0XX0=",
+      "target": [
+        "development"
+      ],
+      "configurationId": null,
+      "id": "fEDxc2cyUt2uN6pK",
+      "key": "VITE_SUPABASE_ANON_KEY",
+      "createdAt": 1784893302119,
+      "updatedAt": 1784893302119,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "encrypted",
+      "value": "eyJ2IjoidjIiLCJjIjoicTJBNGU5L2tDNTBhdmlQYUVCeEJxRTBiSWxzTDhZckxXNXMxb00vWG9rTW1WSjRzV2dGcmE4R1o2RkZVYnV2Z0xBbmgvU3FjTzFoTURzbGF3SlJ2bHRGcndyWmNNcmptekpjYU4vYnlsb1FmWmRZSEpiVkhybmVaaGF6aXBDU0RKQTU4Z1NONmhMdmpkcWU5aG4xMlFhRmtXN0plR21Lclc1YmxOMHFsSVBMWGMrOUdoSElRb00rZjBjcz0iLCJrIjpbMTg0LDEsMiwzLDAsMTIwLDEwNywxMTksMTUzLDIzLDIyMywxMTcsMTgzLDEyMCw1NywxOTYsMTEsMjgsMjQ5LDExOSwxMDQsMjEzLDE2OSwxNjEsMTQxLDE0Miw5OSw2NSw0OSwyMTIsMzAsMTk5LDk3LDIwNCwyMTgsNzcsMTA1LDE3OSwxLDE1OCwxMzMsMTc0LDE1OCwyMTMsNjYsMTg1LDE3LDIzMywxODQsNDMsMCw2NywzNywxOCwyMDUsMCwwLDAsMTI2LDQ4LDEyNCw2LDksNDIsMTM0LDcyLDEzNCwyNDcsMTMsMSw3LDYsMTYwLDExMSw0OCwxMDksMiwxLDAsNDgsMTA0LDYsOSw0MiwxMzQsNzIsMTM0LDI0NywxMywxLDcsMSw0OCwzMCw2LDksOTYsMTM0LDcyLDEsMTAxLDMsNCwxLDQ2LDQ4LDE3LDQsMTIsOTksNTAsMTYzLDEwNiwyNDUsMTY0LDE0NiwxMTUsNzYsNTksMTE4LDExOCwyLDEsMTYsMTI4LDU5LDE1NiwxOTQsMTAwLDE3NCw4NiwxOTcsNzMsMjQ3LDIyOSwxMjYsMjEyLDE5NiwxMSwyMDcsMTkxLDI0NSw3MSwxMDksMTQxLDg2LDI0Niw1NCwxMTgsMjQwLDEwLDQyLDc4LDMxLDEzMSwyMzUsMTc5LDEzMCw3MSwxOTgsNDksMTU2LDIzOSw3MiwyNDcsNzUsMTA5LDEzNSwyNDUsNDQsMTgzLDI1Miw3OSwxMCwxMiwxNTcsNjksNzIsMzksMTMzLDE0MCw5MSwxNjMsMTk5LDk0XX0=",
+      "target": [
+        "development"
+      ],
+      "configurationId": null,
+      "id": "IArSg1WL21BKHT2D",
+      "key": "VITE_SUPABASE_URL",
+      "createdAt": 1784893301324,
+      "updatedAt": 1784893301324,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "encrypted",
+      "value": "eyJ2IjoidjIiLCJjIjoiUDdKcWFPM3EwUE5wWVh4ajZQa3NHcHIwMU9MR2pXbVpEc25DeU5peHQrU3h1WTNHZVMwSkdDc0RyUG1vcTJrcjZ0NXNYTlhFRm5aeXQ2WkF1Y3JoQ3hnaDZjREVSQUN6UEFXQzNwQkFQM1piUzZZTElsc3AzaWI3eGZxQkk2UW5peWVpVU1TSFNYd3Q3cFNEYUg3ZTZyUy8wUnV2ODROZFJyM2RxTVJORVJUNXhORGk5Y2Q1bDdQc2Vtaz0iLCJrIjpbMTg0LDEsMiwzLDAsMTIwLDEwNywxMTksMTUzLDIzLDIyMywxMTcsMTgzLDEyMCw1NywxOTYsMTEsMjgsMjQ5LDExOSwxMDQsMjEzLDE2OSwxNjEsMTQxLDE0Miw5OSw2NSw0OSwyMTIsMzAsMTk5LDk3LDIwNCwyMTgsNzcsMTA1LDE3OSwxLDUzLDQ2LDIyMywxLDEyNCwyNDMsODQsMTI3LDY4LDM3LDIzLDE2OCwyMTAsMjgsMTUyLDE1OCwwLDAsMCwxMjYsNDgsMTI0LDYsOSw0MiwxMzQsNzIsMTM0LDI0NywxMywxLDcsNiwxNjAsMTExLDQ4LDEwOSwyLDEsMCw0OCwxMDQsNiw5LDQyLDEzNCw3MiwxMzQsMjQ3LDEzLDEsNywxLDQ4LDMwLDYsOSw5NiwxMzQsNzIsMSwxMDEsMyw0LDEsNDYsNDgsMTcsNCwxMiwxNTcsNzYsMTk4LDkwLDEyNiwxNjYsMTE2LDgyLDIxLDIzNywxNDEsODksMiwxLDE2LDEyOCw1OSwyNDAsMjQyLDkwLDIwOSw3LDg1LDk4LDEwOCw4MiwxMyw5NywxMzYsNDgsMTM3LDE0LDIxNywxODEsMTc5LDIyNCw0OSw4MSw1NiwxMzgsMjM0LDkzLDI0MiwxNjAsNzQsMjE4LDIwNCwyNTQsMTkwLDY5LDg4LDE2MywyMzksNDYsMjU1LDEzNyw2OCw5NiwyMDgsOTEsMjI3LDIxLDEyMiwxMDgsNDIsNzMsMjEyLDExNiw0OCwyMTUsMTA5LDEzOSw1OSwyMDYsNTYsMjE0XX0=",
+      "target": [
+        "development"
+      ],
+      "configurationId": null,
+      "id": "AFNqEPosWllvfKGt",
+      "key": "SUPABASE_URL",
+      "createdAt": 1784893300004,
+      "updatedAt": 1784893300004,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview"
+      ],
+      "configurationId": null,
+      "id": "9t6Con2iDiVyUBPp",
+      "key": "SUPABASE_URL",
+      "createdAt": 1784893262058,
+      "updatedAt": 1784893262058,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "CUzRBNaY6QsXooss",
+      "key": "SUPABASE_SERVICE_ROLE_KEY",
+      "createdAt": 1784878080333,
+      "updatedAt": 1784878080333,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "dHNR4CMtKchXu7Ii",
+      "key": "SUPABASE_URL",
+      "createdAt": 1784878077301,
+      "updatedAt": 1784878077301,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "VXPtpLQIOURTmM6j",
+      "key": "VITE_SUPABASE_ANON_KEY",
+      "createdAt": 1784878073844,
+      "updatedAt": 1784878073844,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "production"
+      ],
+      "configurationId": null,
+      "id": "1rDZQFpJntYGcT8A",
+      "key": "VITE_SUPABASE_URL",
+      "createdAt": 1784878069415,
+      "updatedAt": 1784878069415,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": null,
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview"
+      ],
+      "configurationId": null,
+      "comment": "Added in v0",
+      "id": "sRbgWjSQZCDh4qrF",
+      "key": "VITE_SUPABASE_URL",
+      "createdAt": 1784830868274,
+      "updatedAt": 1784832264606,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "customEnvironmentIds": [],
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview"
+      ],
+      "configurationId": null,
+      "comment": "Added in v0",
+      "id": "habPJfvFwpVe1Y7A",
+      "key": "VITE_SUPABASE_ANON_KEY",
+      "createdAt": 1784830868274,
+      "updatedAt": 1784832130471,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "customEnvironmentIds": [],
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    },
+    {
+      "type": "sensitive",
+      "value": "",
+      "target": [
+        "preview"
+      ],
+      "configurationId": null,
+      "comment": "Added in v0",
+      "id": "Dcx3kKOmyGRQcuwr",
+      "key": "JWT",
+      "createdAt": 1784817757714,
+      "updatedAt": 1784831916542,
+      "createdBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "updatedBy": "JDLbeSltlv5vUDbqtlAlzPBh",
+      "customEnvironmentIds": [],
+      "decrypted": false,
+      "lastEditedByDisplayName": "beshoyyy1986"
+    }
+  ],
+  "hiddenProductionEnvCount": 0
+}

@@ -19,11 +19,13 @@ export default function Mascot() {
     let alive = true;
 
     const apply = (row) => {
-      if (!row || !alive) return;
-      if (typeof row.mascot_enabled === "boolean") setEnabled(row.mascot_enabled);
-      if (Number.isFinite(Number(row.mascot_size)))   setSize(Number(row.mascot_size));
-      if (Number.isFinite(Number(row.mascot_bottom))) setBottom(Number(row.mascot_bottom));
-      if (Number.isFinite(Number(row.mascot_right)))  setRight(Number(row.mascot_right));
+      if (!alive) return;
+      if (row) {
+        if (typeof row.mascot_enabled === "boolean") setEnabled(row.mascot_enabled);
+        if (Number.isFinite(Number(row.mascot_size)))   setSize(Number(row.mascot_size));
+        if (Number.isFinite(Number(row.mascot_bottom))) setBottom(Number(row.mascot_bottom));
+        if (Number.isFinite(Number(row.mascot_right)))  setRight(Number(row.mascot_right));
+      }
       setReady(true);
     };
 

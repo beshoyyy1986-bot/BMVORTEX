@@ -138,16 +138,28 @@ function ProfileDropdown({ session, userInfo, onSignOut, onAvatarUpdate, isDark 
     setUploading(true);
     setUploadMsg("");
     try {
-      const form = new FormData();
-      form.append("file", file);
-      form.append("userId", session.user.id);
+      ensureSupabase();
+      const ext = file.name.split('.').pop() || 'jpg';
+      const filePath = `${session.user.id}/avatar.${ext}`;
 
-      const res  = await fetch("/api/admin/upload-avatar", { method: "POST", body: form });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Upload failed");
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', session.user.id);
+      if (dbErr) throw dbErr;
 
       setUploadMsg(t("photo_updated"));
-      onAvatarUpdate?.(data.url);
+      onAvatarUpdate?.(publicUrl);
     } catch (err) {
       setUploadMsg(t("upload_failed") + err.message);
     } finally {
@@ -346,6 +358,7 @@ export default function SecureDashboardApp() {
   const [forgotStatus, setForgotStatus] = useState({ ok: "", error: "", loading: false });
   const [resetForm, setResetForm] = useState({ password: "", confirmPassword: "" });
   const [resetStatus, setResetStatus] = useState({ ok: "", error: "", loading: false });
+  const [emailConfirmed, setEmailConfirmed] = useState(true);
   const [msg, setMsg]             = useState("");
   const [adminMasterPassword, setAdminMasterPassword] = useState("");
   const [securityLocked, setSecurityLocked] = useState(false);
@@ -403,13 +416,20 @@ export default function SecureDashboardApp() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) loadAccess(session.user.id, session.user.email);
+      if (session) {
+        setEmailConfirmed(!!session.user.email_confirmed_at);
+        loadAccess(session.user.id, session.user.email);
+      }
     });
 
     const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
-      if (session) loadAccess(session.user.id, session.user.email);
-      else setUserInfo({ role: "user", plan: "none", allowed_types: [] });
+      if (session) {
+        setEmailConfirmed(!!session.user.email_confirmed_at);
+        loadAccess(session.user.id, session.user.email);
+      } else {
+        setUserInfo({ role: "user", plan: "none", allowed_types: [] });
+      }
     });
 
     return () => { authListener.unsubscribe(); };
@@ -678,6 +698,22 @@ export default function SecureDashboardApp() {
       setResetForm({ password: "", confirmPassword: "" });
     } catch (error) {
       setResetStatus({ ok: "", error: error.message || t("reset_failed"), loading: false });
+    }
+  }
+
+  async function resendConfirmationEmail() {
+    if (!session?.user?.email) return;
+    try {
+      ensureSupabase();
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: session.user.email,
+        options: { emailRedirectTo: `${window.location.origin}/` },
+      });
+      if (error) throw error;
+      setMsg(t("verification_sent"));
+    } catch (error) {
+      setMsg(t("auth_error") + (error.message || ""));
     }
   }
 
@@ -1175,6 +1211,22 @@ export default function SecureDashboardApp() {
             <div className={`mb-3 rounded-xl border px-4 py-2 text-sm ${isDark ? "border-slate-500/30 bg-slate-500/10 text-slate-200" : "border-slate-300 bg-slate-100 text-slate-700"}`}>
               {msg}
               <button onClick={() => setMsg("")} className="float-right text-xs opacity-60 hover:opacity-100">✕</button>
+            </div>
+          )}
+
+          {session && !emailConfirmed && (
+            <div className={`mb-3 rounded-xl border px-4 py-3 text-sm ${
+              isDark ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-amber-400/40 bg-amber-50 text-amber-800"
+            }`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-base">⚠️</span>
+                <span className="font-semibold">{t("verify_email_title")}:</span>
+                <span>{t("verify_email_banner")}</span>
+                <button onClick={resendConfirmationEmail}
+                  className="ms-auto rounded-lg border border-amber-500/40 px-3 py-1 text-xs font-bold hover:bg-amber-500/20 transition-colors">
+                  {t("resend_verification")}
+                </button>
+              </div>
             </div>
           )}
 
