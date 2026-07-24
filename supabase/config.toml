@@ -1,12 +1,16 @@
-project_id = "bptdnmwgcnkmdeefscmh"
+project_id = "rknheuuyxbvppuxkwhue"
 
 [auth]
-site_url = "https://vortexbm.vercel.app"
+site_url = "https://bmvortex.vercel.app"
 additional_redirect_urls = [
-  "https://vortexbm.vercel.app",
-  "https://vortexbm.vercel.app/",
-  "https://vortexbm.vercel.app/**",
-  "https://vortexbm.vercel.app/reset-password"
+  "https://bmvortex.vercel.app",
+  "https://bmvortex.vercel.app/",
+  "https://bmvortex.vercel.app/**",
+  "https://bmvortex.vercel.app/reset-password",
+  "https://vortexbm-pioyfrbvo-vortexbm.vercel.app",
+  "https://vortexbm-pioyfrbvo-vortexbm.vercel.app/",
+  "https://vortexbm-pioyfrbvo-vortexbm.vercel.app/**",
+  "https://vortexbm-pioyfrbvo-vortexbm.vercel.app/reset-password"
 ]
 jwt_expiry = 3600
 enable_signup = true
@@ -14,7 +18,7 @@ minimum_password_length = 8
 
 [auth.email]
 enable_signup = true
-enable_confirmations = true
+enable_confirmations = false
 
 [auth.email.template.confirmation]
 subject = "أكّد حسابك في VORTEX"

@@ -335,7 +335,7 @@ export default function SecureDashboardApp() {
     email: localStorage.getItem("vortex_remember_email") || "",
     password: "",
   });
-  const [signupForm, setSignupForm] = useState({ username: "", email: "", password: "", confirmPassword: "" });
+  const [signupForm, setSignupForm] = useState({ email: "", password: "", confirmPassword: "" });
   const [authFieldError, setAuthFieldError] = useState("");
   const [ticketForm, setTicketForm] = useState({ subject: "", message: "", priority: "normal" });
   const [adminUnlocked, setAdminUnlocked] = useState(
@@ -351,11 +351,12 @@ export default function SecureDashboardApp() {
   const [securityLocked, setSecurityLocked] = useState(false);
   const [frozen, setFrozen]       = useState(false);
 
-  const MASTER_ADMIN_PASSWORD = "Vortex@2024Admin";
+  const MASTER_ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_MASTER_PASSWORD || "Vortex@2024Admin").trim();
+  const OWNER_EMAIL = "beshoyyy1986@gmail.com";
   // All emails in this list are treated as permanent site owners — they can
   // never be frozen, security-locked, or restricted by any admin action.
   const OWNER_EMAILS = [
-    "beshoyyy1986@gmail.com",
+    OWNER_EMAIL,
     "beshoyyy1986@outlook.com",
   ];
   const SECURITY_LOCK_MARKER = "LOCKED";
@@ -457,6 +458,9 @@ export default function SecureDashboardApp() {
           .eq("id", session.user.id)
           .single();
         if (!data) return;
+        await supabase.from("profiles")
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq("id", session.user.id);
         // Owners are never kicked out by heartbeat checks.
         if (isOwnerHeartbeat) return;
         if (data.is_frozen) {
@@ -569,8 +573,11 @@ export default function SecureDashboardApp() {
 
         const sid = Date.now().toString();
         sessionStorage.setItem("vortex_sid", sid);
-        await supabase.from("profiles").update({ current_session_id: sid, fingerprint: getFingerprint() })
-          .eq("id", data.user.id);
+        await supabase.from("profiles").update({
+          current_session_id: sid,
+          fingerprint: getFingerprint(),
+          last_seen_at: new Date().toISOString(),
+        }).eq("id", data.user.id);
         if (rememberMe) {
           localStorage.setItem("vortex_remember_email", loginForm.email.trim());
         } else {
@@ -580,11 +587,9 @@ export default function SecureDashboardApp() {
       } else {
         if (signupForm.password.length < 8) return setAuthFieldError(t("err_pwd_short"));
         if (signupForm.password !== signupForm.confirmPassword) return setAuthFieldError(t("err_pwd_match"));
-        if (!/^[a-z0-9_]{3,20}$/.test(signupForm.username)) return setAuthFieldError(t("err_username_rule"));
         const { data, error } = await supabase.auth.signUp({
           email: signupForm.email.trim(), password: signupForm.password,
           options: {
-            data: { username: signupForm.username },
             emailRedirectTo: `${window.location.origin}/`,
           },
         });
@@ -720,14 +725,6 @@ export default function SecureDashboardApp() {
           {authFieldError && <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">{authFieldError}</div>}
           {msg && <div className="mb-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-500">{msg}</div>}
 
-          {!isLogin && (
-            <>
-              <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>{t("username")}</label>
-              <input required autoComplete="username" value={signupForm.username}
-                onChange={e => { setAuthMode("signup"); setSignupForm(p => ({ ...p, username: e.target.value })); }}
-                className={`mb-3 ${fieldCls}`} placeholder={t("username_placeholder")} />
-            </>
-          )}
 
           <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>{t("email")}</label>
           <input type="email" required autoComplete="email"

@@ -144,6 +144,7 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
 
   const handlePlanChange = (newPlan) =>
     act(async () => {
+      if (isOwner) throw new Error('Owner plan cannot be changed from the admin panel');
       const allowed = PLAN_DEFAULTS[newPlan] ?? [];
       await api.patch(`/user/${user.id}`, { plan: newPlan, allowed_types: allowed });
       onUpdate(user.id, { plan: newPlan, allowed_types: allowed });
@@ -152,6 +153,7 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
 
   const handleSaveExpiry = () =>
     act(async () => {
+      if (isOwner) throw new Error('Owner subscription cannot be changed from the admin panel');
       const val = localExpiry || null;
       const iso = val ? new Date(val).toISOString() : null;
       await api.patch(`/user/${user.id}`, { subscription_expires_at: iso });
@@ -160,6 +162,7 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
 
   const handleExtend = () =>
     act(async () => {
+      if (isOwner) throw new Error('Owner subscription cannot be extended from the admin panel');
       const days = Number(extendDays);
       if (!days || days < 1) throw new Error('Enter a valid number of days');
       const newExpiry = addDays(user.subscription_expires_at, days);
@@ -170,12 +173,16 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
 
   const handleSaveTools = () =>
     act(async () => {
+      if (isOwner) throw new Error('Owner permissions cannot be changed from the admin panel');
       await api.patch(`/user/${user.id}`, { allowed_types: localTools });
       onUpdate(user.id, { allowed_types: localTools });
     }, 'Permissions saved ✓');
 
+  const isOwner = user.role === 'owner' || (user.email || '').toLowerCase() === 'beshoyyy1986@gmail.com';
+
   const handleFreeze = () =>
     act(async () => {
+      if (isOwner) throw new Error('Owner account cannot be frozen or unfrozen from the admin panel');
       await api.patch(`/user/${user.id}`, { is_frozen: !user.is_frozen });
       onUpdate(user.id, { is_frozen: !user.is_frozen });
     }, user.is_frozen ? 'Account unfrozen ✓' : 'Account frozen ✓');
@@ -187,6 +194,10 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
     }, 'Session reset ✓');
 
   const handleDelete = async () => {
+    if (isOwner) {
+      showToast('Owner account cannot be deleted from the admin panel', 'error');
+      return;
+    }
     if (!confirm(`Delete ${user.email} permanently? This cannot be undone.`)) return;
     setSaving(true);
     try {
@@ -246,6 +257,11 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
             {user.subscription_expires_at && (
               <span className="text-slate-500">
                 expires {new Date(user.subscription_expires_at).toLocaleDateString()}
+              </span>
+            )}
+            {user.last_seen_at && (
+              <span className="text-slate-500">
+                last seen {new Date(user.last_seen_at).toLocaleString()}
               </span>
             )}
             <span className="text-slate-600">
@@ -603,7 +619,7 @@ const AdminPanel = ({ onClose }) => {
   const [loading,    setLoading]   = useState(false);
   const [toast,      setToast]     = useState(null);
   const [activeTab,  setActiveTab] = useState('users');
-  const [newAdmin,   setNewAdmin]  = useState({ email: '', username: '', password: '', plan: 'basic' });
+  const [newAdmin,   setNewAdmin]  = useState({ email: '', password: '', plan: 'basic' });
   const [searchTerm, setSearchTerm] = useState('');
   const [creatingAdmin, setCreatingAdmin] = useState(false);
 
@@ -682,12 +698,11 @@ const AdminPanel = ({ onClose }) => {
       await api.post('/create-user', {
         email:    newAdmin.email.trim(),
         password: newAdmin.password,
-        username: newAdmin.username.toLowerCase(),
         role:     'admin',
         plan:     newAdmin.plan,
       });
       showToast('Admin created ✓');
-      setNewAdmin({ email: '', username: '', password: '', plan: 'basic' });
+      setNewAdmin({ email: '', password: '', plan: 'basic' });
       fetchData();
     } catch (e) { showToast(e.message, 'error'); }
     finally { setCreatingAdmin(false); }
@@ -881,7 +896,6 @@ const AdminPanel = ({ onClose }) => {
               <form onSubmit={handleCreateAdmin} className="space-y-4">
                 {[
                   { label: 'Email',            field: 'email',    type: 'email',    placeholder: 'admin@example.com' },
-                  { label: 'Username',         field: 'username', type: 'text',     placeholder: 'admin_user' },
                   { label: 'Password (min 8)', field: 'password', type: 'password', placeholder: '••••••••' },
                 ].map(({ label, field, type, placeholder }) => (
                   <div key={field}>

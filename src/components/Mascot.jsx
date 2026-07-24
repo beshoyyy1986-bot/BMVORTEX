@@ -9,7 +9,7 @@ import { supabase } from "../lib/supabaseClient";
 const MASCOT_SRC = "/mascot.png";
 
 export default function Mascot() {
-  const [enabled, setEnabled]       = useState(false); // stay hidden until we know
+  const [enabled, setEnabled]       = useState(true); // visible by default until the server says otherwise
   const [size, setSize]             = useState(120);
   const [bottom, setBottom]         = useState(50);    // px from bottom
   const [right, setRight]           = useState(12);    // px from right

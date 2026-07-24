@@ -19,7 +19,8 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS is_frozen boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS current_session_id text,
   ADD COLUMN IF NOT EXISTS fingerprint text,
-  ADD COLUMN IF NOT EXISTS avatar_url text;
+  ADD COLUMN IF NOT EXISTS avatar_url text,
+  ADD COLUMN IF NOT EXISTS last_seen_at timestamptz;
 
 -- 2) Trigger: auto-create a profile row on every new signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()

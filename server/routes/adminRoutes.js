@@ -14,6 +14,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 //   SUPABASE_URL              (server-side)
 //   SUPABASE_SERVICE_ROLE_KEY (server-side, keep secret — this is the secret key)
 const SUPABASE_URL = process.env.SUPABASE_URL;
+const OWNER_EMAIL = 'beshoyyy1986@gmail.com';
 
 const ALL_TOOL_TYPES = [
   'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
@@ -87,6 +88,16 @@ router.get('/tickets', async (req, res) => {
 router.patch('/user/:id', async (req, res) => {
   try {
     const adminClient = getAdminClient();
+    const { data: target, error: targetErr } = await adminClient
+      .from('profiles')
+      .select('id, email, role')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (targetErr) throw targetErr;
+    if (target?.email?.toLowerCase() === OWNER_EMAIL || target?.role === 'owner') {
+      return res.status(403).json({ ok: false, error: 'Owner account is protected and cannot be changed from the admin panel' });
+    }
+
     const { error } = await adminClient
       .from('profiles')
       .update(req.body)
@@ -103,6 +114,16 @@ router.patch('/user/:id', async (req, res) => {
 router.delete('/user/:id', async (req, res) => {
   try {
     const adminClient = getAdminClient();
+    const { data: target, error: targetErr } = await adminClient
+      .from('profiles')
+      .select('id, email, role')
+      .eq('id', req.params.id)
+      .maybeSingle();
+    if (targetErr) throw targetErr;
+    if (target?.email?.toLowerCase() === OWNER_EMAIL || target?.role === 'owner') {
+      return res.status(403).json({ ok: false, error: 'Owner account is protected and cannot be deleted from the admin panel' });
+    }
+
     const { error: profErr } = await adminClient.from('profiles').delete().eq('id', req.params.id);
     if (profErr) throw profErr;
     // Also delete from auth
@@ -267,17 +288,18 @@ router.patch('/settings', async (req, res) => {
 // ── POST /api/admin/create-user ───────────────────────────────────────────────
 router.post('/create-user', async (req, res) => {
   try {
-    const { email, password, username, role = 'admin', plan = 'basic' } = req.body;
-    if (!email || !password || !username) {
-      return res.status(400).json({ ok: false, error: 'email, password and username are required' });
+    const { email, password, role = 'admin', plan = 'basic' } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, error: 'email and password are required' });
     }
 
     const adminClient = getAdminClient();
+    const fallbackUsername = (email.split('@')[0] || 'user').toLowerCase();
 
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email: email.trim(),
       password,
-      user_metadata: { username: username.toLowerCase() },
+      user_metadata: { username: fallbackUsername },
       email_confirm: true,
     });
     if (authError) throw authError;
@@ -291,7 +313,7 @@ router.post('/create-user', async (req, res) => {
       .upsert({
         id:            authData.user.id,
         email:         authData.user.email,
-        username:      username.toLowerCase(),
+        username:      fallbackUsername,
         role,
         plan,
         allowed_types: allowed,
