@@ -1,32 +1,49 @@
-# Workspace archive upload
-VORTEXBM.zip
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# OS and editor noise
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+.expo
+.expo-shared
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
 .DS_Store
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-*.log
+Thumbs.db
 
-# Node/build artifacts
-node_modules/
-dist/
-build/
-coverage/
-.vercel
-.firebase/
+.cursor/rules/nx-rules.mdc
+.github/instructions/nx.instructions.md
 
-# Supabase CLI
-supabase/.temp/
-
-# Stray files from mistyped shell redirects (e.g. "iongh auth status")
-*vercel_env.json
-gh auth status
-*gh auth status*
-
-# Environment and secrets — keep last so the negations win
-.env*
-!.env.example
-!.env.sample
+# Replit
+.cache/
+.local/
