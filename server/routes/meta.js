@@ -73,8 +73,11 @@ router.post('/page-posts', async (req, res) => {
 
   const GRAPH = 'https://graph.facebook.com/v21.0';
   try {
+    // /feed includes unpublished (dark) posts, which /posts omits — those are
+    // exactly the ones just created by this tool.
     const r = await fetch(
-      `${GRAPH}/${page_id}/posts?fields=id,message,story,created_time&access_token=${encodeURIComponent(page_token)}&limit=30`
+      `${GRAPH}/${page_id}/feed?fields=id,message,story,created_time,is_published&access_token=${encodeURIComponent(page_token)}&limit=50`,
+      { cache: 'no-store' }
     ).then(resp => resp.json());
 
     if (r?.error) {
@@ -94,8 +97,10 @@ router.post('/page-posts', async (req, res) => {
         page_only_id: parts[0] ?? id,
         message: String(p.message ?? ''),
         created_time: String(p.created_time ?? ''),
+        is_published: p.is_published !== false,
       };
     });
+    posts.sort((a, b) => (b.created_time || '').localeCompare(a.created_time || ''));
 
     res.json({ ok: true, posts });
   } catch (e) {
@@ -113,6 +118,7 @@ router.post('/create-ad', async (req, res) => {
     traffic_url, publish_status = 'PAUSED',
     country = 'EG', age_min = 18, age_max = 65,
     gender = 0, custom_audience_id,
+    pixel_id, custom_event_type = 'PURCHASE',
   } = req.body || {};
 
   if (!token || !ad_account || !page_id || !post_id) {
@@ -132,21 +138,39 @@ router.post('/create-ad', async (req, res) => {
     return fetch(url, { method: 'POST', body }).then(r => r.json());
   };
 
+  // Each objective pins the optimization_goal / destination_type pair that Meta
+  // accepts for it. Sending a mismatched pair is what triggers the
+  // "can't use the selected performance goal with your campaign objective" error.
   const objectiveConfig = {
-    OUTCOME_ENGAGEMENT: { goal: 'REACH',               billing: 'IMPRESSIONS', dest: 'ON_POST'  },
-    OUTCOME_TRAFFIC:    { goal: 'LANDING_PAGE_VIEWS',  billing: 'IMPRESSIONS', dest: 'WEBSITE'  },
-    OUTCOME_AWARENESS:  { goal: 'REACH',               billing: 'IMPRESSIONS', dest: 'ON_POST'  },
-    OUTCOME_LEADS:      { goal: 'LEAD_GENERATION',     billing: 'IMPRESSIONS', dest: 'ON_AD'    },
-    OUTCOME_SALES:      { goal: 'OFFSITE_CONVERSIONS', billing: 'IMPRESSIONS', dest: 'WEBSITE'  },
+    OUTCOME_ENGAGEMENT: { goal: 'POST_ENGAGEMENT',     billing: 'IMPRESSIONS', dest: null },
+    OUTCOME_AWARENESS:  { goal: 'REACH',               billing: 'IMPRESSIONS', dest: null },
+    OUTCOME_TRAFFIC:    { goal: 'LANDING_PAGE_VIEWS',  billing: 'IMPRESSIONS', dest: 'WEBSITE' },
+    OUTCOME_LEADS:      { goal: 'LEAD_GENERATION',     billing: 'IMPRESSIONS', dest: 'ON_AD' },
+    OUTCOME_SALES:      { goal: 'OFFSITE_CONVERSIONS', billing: 'IMPRESSIONS', dest: 'WEBSITE', needsPixel: true },
+    // Click-to-Messenger: engagement objective, conversation optimization.
+    MESSENGER:          { goal: 'CONVERSATIONS', billing: 'IMPRESSIONS', dest: 'MESSENGER', campaignObjective: 'OUTCOME_ENGAGEMENT' },
   };
   const objCfg = objectiveConfig[objective] ?? objectiveConfig['OUTCOME_ENGAGEMENT'];
+  // MESSENGER is a tool-level shorthand, not a real Meta campaign objective.
+  const campaignObjective = objCfg.campaignObjective ?? objective;
+
+  if (objCfg.needsPixel && !pixel_id) {
+    return res.json({
+      ok: false,
+      reason: 'هدف المبيعات يتطلب Pixel — اختر بكسل أو استخدم هدفاً آخر',
+    });
+  }
+  if (objective === 'OUTCOME_TRAFFIC' && !traffic_url) {
+    return res.json({ ok: false, reason: 'هدف الزيارات يتطلب رابط الوجهة' });
+  }
+
   const ts = Date.now().toString().slice(-6);
 
   try {
     // 1. Campaign
     const campRes = await metaPost(`${base}/campaigns`, {
       name: `Camp_${ts}`,
-      objective,
+      objective: campaignObjective,
       status: publish_status,
       special_ad_categories: JSON.stringify([]),
       is_adset_budget_sharing_enabled: false,
@@ -167,7 +191,11 @@ router.post('/create-ad', async (req, res) => {
 
     // 3. AdSet
     const now = new Date();
-    const promotedObject = { page_id };
+    // Conversion optimization is keyed off a pixel, not a page — sending page_id
+    // here is what made OUTCOME_SALES fail.
+    const promotedObject = objCfg.needsPixel
+      ? { pixel_id: String(pixel_id), custom_event_type }
+      : { page_id };
     if (objective === 'OUTCOME_TRAFFIC' && traffic_url) {
       promotedObject.object_store_url = traffic_url;
     }
@@ -177,12 +205,12 @@ router.post('/create-ad', async (req, res) => {
       campaign_id: campId,
       billing_event: objCfg.billing,
       optimization_goal: objCfg.goal,
-      destination_type: objCfg.dest,
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       targeting,
       promoted_object: promotedObject,
       status: publish_status,
     };
+    if (objCfg.dest) adsetFields.destination_type = objCfg.dest;
 
     let scheduleInfo = '';
     if (Number(days) > 0) {
@@ -207,6 +235,13 @@ router.post('/create-ad', async (req, res) => {
     // 4. Ad Creative
     const creativeFields = { object_story_id: post_id };
     if (objective === 'OUTCOME_TRAFFIC' && traffic_url) creativeFields.link_url = traffic_url;
+    // Messenger ads need a CTA that opens a thread with the page.
+    if (objective === 'MESSENGER') {
+      creativeFields.call_to_action = {
+        type: 'MESSAGE_PAGE',
+        value: { app_destination: 'MESSENGER' },
+      };
+    }
 
     const creativeRes = await metaPost(`${base}/adcreatives`, creativeFields);
     if (!creativeRes?.id) {
@@ -495,6 +530,27 @@ router.post('/update-ad', async (req, res) => {
     res.json({ ok: true, message: `تم: ${actions.join(' + ')} ✅` });
   } catch (e) {
     res.json({ ok: false, reason: e.message ?? 'انتهت مهلة الاتصال' });
+  }
+});
+
+// ── List pixels for an ad account ────────────────────────────────
+router.post('/pixels', async (req, res) => {
+  const { token, ad_account, proxy } = req.body || {};
+  if (!token || !ad_account) {
+    return res.status(400).json({ ok: false, reason: 'بيانات ناقصة' });
+  }
+  const GRAPH = 'https://graph.facebook.com/v21.0';
+  const actId = String(ad_account).replace('act_', '');
+  const proxyUrl = proxy ? parseProxyUrl(proxy) : null;
+  try {
+    const r = await proxyFetch(
+      `${GRAPH}/act_${actId}/adspixels?fields=id,name&access_token=${encodeURIComponent(token)}&limit=50`,
+      proxyUrl
+    ).then(r => r.json());
+    if (r?.error) return res.json({ ok: false, reason: r.error.message });
+    res.json({ ok: true, pixels: Array.isArray(r?.data) ? r.data : [] });
+  } catch {
+    res.json({ ok: false, reason: 'انتهت مهلة الاتصال' });
   }
 });
 

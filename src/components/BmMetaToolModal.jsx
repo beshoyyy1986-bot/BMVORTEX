@@ -50,11 +50,18 @@ const COUNTRIES = [
 ];
 
 const OBJECTIVES = [
-  { value: 'OUTCOME_ENGAGEMENT', label: 'تفاعل' },
-  { value: 'OUTCOME_TRAFFIC',    label: 'زيارات' },
-  { value: 'OUTCOME_AWARENESS',  label: 'وعي' },
+  { value: 'OUTCOME_ENGAGEMENT', label: 'تفاعل مع المنشور' },
+  { value: 'MESSENGER',          label: 'رسائل ماسنجر 💬' },
+  { value: 'OUTCOME_TRAFFIC',    label: 'زيارات (يتطلب رابط)' },
+  { value: 'OUTCOME_AWARENESS',  label: 'وعي / وصول' },
   { value: 'OUTCOME_LEADS',      label: 'عملاء محتملون' },
-  { value: 'OUTCOME_SALES',      label: 'مبيعات' },
+  { value: 'OUTCOME_SALES',      label: 'مبيعات (يتطلب Pixel)' },
+];
+
+// Standard pixel events accepted as custom_event_type for conversion goals.
+const PIXEL_EVENTS = [
+  'PURCHASE', 'ADD_TO_CART', 'INITIATED_CHECKOUT', 'LEAD',
+  'COMPLETE_REGISTRATION', 'ADD_PAYMENT_INFO', 'VIEW_CONTENT', 'SEARCH',
 ];
 
 const ACCOUNT_STATUS = {
@@ -310,6 +317,11 @@ export default function BmMetaToolModal({ onClose }) {
   const [trafficUrl, setTrafficUrl]     = useState('');
   const [publishStatus, setPublishStatus] = useState('PAUSED');
   const [unpublishAfter, setUnpublishAfter] = useState(true);
+  const [pixels, setPixels]             = useState([]);
+  const [pixelId, setPixelId]           = useState('');
+  const [pixelEvent, setPixelEvent]     = useState('PURCHASE');
+  const [loadingPixels, setLoadingPixels] = useState(false);
+  const [refreshing, setRefreshing]     = useState(false);
 
   // Targeting
   const [audienceMode, setAudienceMode] = useState('custom');
@@ -410,16 +422,46 @@ export default function BmMetaToolModal({ onClose }) {
   };
 
   // Fetch page posts when page selected
-  useEffect(() => {
-    if (!selPage || !activeToken) return;
-    const page = (connectData?.pages ?? []).find(p => p.id === selPage);
-    const pageToken = page?.access_token || activeToken;
+  const pageAccessToken = (connectData?.pages ?? []).find(p => p.id === selPage)?.access_token
+    || activeToken;
+
+  const reloadPosts = useCallback(async (keepSelection = false) => {
+    if (!selPage || !pageAccessToken) return;
     setLoadingPosts(true);
-    setSelPost(''); setPosts([]);
-    api('page-posts', { page_id: selPage, page_token: pageToken })
-      .then(data => { setPosts(data.posts ?? []); setLoadingPosts(false); })
-      .catch(() => setLoadingPosts(false));
-  }, [selPage, activeToken, connectData]);
+    if (!keepSelection) { setSelPost(''); setPosts([]); }
+    try {
+      const data = await api('page-posts', { page_id: selPage, page_token: pageAccessToken });
+      setPosts(data.posts ?? []);
+    } finally {
+      setLoadingPosts(false);
+    }
+  }, [selPage, pageAccessToken]);
+
+  useEffect(() => { reloadPosts(); }, [reloadPosts]);
+
+  // Load pixels when the Sales objective needs one
+  useEffect(() => {
+    if (objective !== 'OUTCOME_SALES' || !selAccount || !activeToken) return;
+    setLoadingPixels(true);
+    api('pixels', { token: activeToken, ad_account: selAccount })
+      .then(d => {
+        const list = d.pixels ?? [];
+        setPixels(list);
+        setPixelId(prev => prev || (list[0]?.id ?? ''));
+      })
+      .finally(() => setLoadingPixels(false));
+  }, [objective, selAccount, activeToken]);
+
+  // Pull fresh accounts / pages / posts for the active token
+  const handleRefreshAll = async () => {
+    if (!activeToken) return;
+    setRefreshing(true);
+    const acc = accounts.find(a => a.token === activeToken);
+    const data = await api('connect', { token: activeToken, proxy: acc?.proxy ?? null });
+    if (data.ok) setConnectData(data);
+    await reloadPosts(true);
+    setRefreshing(false);
+  };
 
   // Reset when token changes
   useEffect(() => {
@@ -466,17 +508,29 @@ export default function BmMetaToolModal({ onClose }) {
       token: activeToken, ad_account: selAccount, page_id: selPage, post_id: postId,
       budget: Number(budget), days: Number(days), objective,
       traffic_url: trafficUrl || null, publish_status: status,
+      pixel_id: objective === 'OUTCOME_SALES' ? (pixelId || null) : null,
+      custom_event_type: objective === 'OUTCOME_SALES' ? pixelEvent : undefined,
       country: audienceMode === 'custom' ? country : 'WW',
       age_min: audienceMode === 'custom' ? Number(ageMin) : undefined,
       age_max: audienceMode === 'custom' ? Number(ageMax) : undefined,
       gender: audienceMode === 'custom' ? Number(gender) : undefined,
       custom_audience_id: audienceMode === 'saved' && customAudienceId ? customAudienceId : null,
     });
+
+    // Await the deletion so its outcome can be reported, not fired blindly.
+    if (data.ok && unpublishAfter && postMode === 'existing' && selPost) {
+      const del = await api('delete-post', { post_id: selPost, page_token: activePageToken });
+      data.message = `${data.message ?? ''} | ${
+        del?.ok ? '✅ تم حذف المنشور بنجاح' : `⚠️ فشل حذف المنشور: ${del?.reason ?? 'خطأ غير معروف'}`
+      }`;
+      if (del?.ok) {
+        setPosts(prev => prev.filter(p => p.id !== selPost));
+        setSelPost('');
+      }
+    }
+
     setAdResult(data);
     setCreating(false);
-    if (data.ok && unpublishAfter && postMode === 'existing' && selPost) {
-      api('delete-post', { post_id: selPost, page_token: activePageToken });
-    }
   };
 
   const handleFetchAdStatus = async () => {
@@ -527,7 +581,10 @@ export default function BmMetaToolModal({ onClose }) {
     if (data.ok) handleFetchAdStatus();
   };
 
-  const canCreate = Boolean(selAccount && selPage && (postMode === 'dark' ? (darkPostResult?.post_id) : selPost) && !creating);
+  const objectiveReady =
+    (objective !== 'OUTCOME_SALES' || Boolean(pixelId)) &&
+    (objective !== 'OUTCOME_TRAFFIC' || Boolean(trafficUrl.trim()));
+  const canCreate = Boolean(selAccount && selPage && (postMode === 'dark' ? (darkPostResult?.post_id) : selPost) && objectiveReady && !creating);
 
   const adStatusColor = {
     ACTIVE: 'text-green-400', PAUSED: 'text-yellow-400',
@@ -579,6 +636,11 @@ export default function BmMetaToolModal({ onClose }) {
                 ))}
               </div>
             </div>
+          )}
+          {accounts.length > 0 && (
+            <Btn size="sm" variant="ghost" loading={refreshing} onClick={handleRefreshAll} disabled={!activeToken}>
+              🔄 تحديث
+            </Btn>
           )}
           {accounts.length > 0 && (
             <Btn size="sm" variant="ghost" loading={checkingToken} onClick={handleCheckToken} disabled={!activeToken}>
@@ -738,7 +800,7 @@ export default function BmMetaToolModal({ onClose }) {
                           const bal = fmtCents(acc.balance, acc.currency);
                           return (
                             <option key={acc.id} value={acc.id}>
-                              {acc.name ?? acc.id} {st ? `(${st.label})` : ''} {bal ? `| رصيد: ${bal}` : ''}
+                              {acc.name ?? acc.id} — {acc.id} {st ? `(${st.label})` : ''} {bal ? `| رصيد: ${bal}` : ''}
                             </option>
                           );
                         })}
@@ -751,6 +813,14 @@ export default function BmMetaToolModal({ onClose }) {
                         const spent = fmtCents(acc.amount_spent, acc.currency);
                         return (
                           <div className="flex flex-wrap gap-1.5 mt-1">
+                            <button
+                              type="button"
+                              onClick={() => navigator.clipboard?.writeText(acc.id)}
+                              title="نسخ معرف الحساب"
+                              className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-mono hover:bg-amber-500/20"
+                            >
+                              {acc.id} ⧉
+                            </button>
                             {st && <span className={`text-[11px] px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>}
                             {acc.account_quality != null && (
                               <span className={`text-[11px] px-2 py-0.5 rounded-full ${acc.account_quality >= 4 ? 'bg-green-500/20 text-green-400' : acc.account_quality >= 2 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
@@ -882,6 +952,38 @@ export default function BmMetaToolModal({ onClose }) {
                       <Field label="رابط الزيارات">
                         <Input type="url" dir="ltr" placeholder="https://example.com" value={trafficUrl} onChange={e => setTrafficUrl(e.target.value)} />
                       </Field>
+                    )}
+                    {objective === 'MESSENGER' && (
+                      <p className="rounded-lg border border-blue-500/25 bg-blue-500/5 px-3 py-2 text-[11px] leading-relaxed text-blue-300">
+                        💬 إعلان رسائل ماسنجر — الضغط على الإعلان يفتح محادثة مع صفحتك مباشرة.
+                        يُرسل كحملة تفاعل مع تحسين للمحادثات.
+                      </p>
+                    )}
+                    {objective === 'OUTCOME_SALES' && (
+                      <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5">
+                        <Field label="Pixel (مطلوب لهدف المبيعات)">
+                          <Select value={pixelId} onChange={setPixelId} disabled={loadingPixels}>
+                            <option value="">
+                              {loadingPixels ? 'جاري التحميل...'
+                                : pixels.length === 0 ? 'لا يوجد Pixel في هذا الحساب'
+                                : 'اختر Pixel'}
+                            </option>
+                            {pixels.map(px => (
+                              <option key={px.id} value={px.id}>{px.name ?? px.id} — {px.id}</option>
+                            ))}
+                          </Select>
+                        </Field>
+                        <Field label="حدث التحويل">
+                          <Select value={pixelEvent} onChange={setPixelEvent}>
+                            {PIXEL_EVENTS.map(ev => <option key={ev} value={ev}>{ev}</option>)}
+                          </Select>
+                        </Field>
+                        {!loadingPixels && pixels.length === 0 && selAccount && (
+                          <p className="text-[11px] text-amber-400/80">
+                            ⚠️ هدف المبيعات يتطلب Pixel مرتبطاً بالحساب الإعلاني. أنشئ واحداً من Events Manager أو اختر هدفاً آخر.
+                          </p>
+                        )}
+                      </div>
                     )}
                     <div className="flex items-center gap-3 text-xs text-slate-400">
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -1031,7 +1133,28 @@ export default function BmMetaToolModal({ onClose }) {
                             </Field>
                           </div>
                           <Field label="نقل إلى منشور آخر (Post ID)">
-                            <Input dir="ltr" placeholder="page_id_post_id أو فارغ" value={editPostId} onChange={e => setEditPostId(e.target.value)} />
+                            <div className="space-y-1.5">
+                              <div className="flex gap-2">
+                                <Select value={editPostId} onChange={setEditPostId} disabled={!selPage || loadingPosts}>
+                                  <option value="">
+                                    {!selPage ? 'اختر الصفحة من تبويب الإنشاء أولاً'
+                                      : loadingPosts ? 'جاري التحميل...'
+                                      : posts.length === 0 ? 'لا توجد منشورات'
+                                      : 'اختر من أحدث المنشورات'}
+                                  </option>
+                                  {posts.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.is_published === false ? '🔒 ' : ''}{p.label}
+                                    </option>
+                                  ))}
+                                </Select>
+                                <Btn size="sm" variant="ghost" loading={loadingPosts}
+                                     onClick={() => reloadPosts(true)} disabled={!selPage}>
+                                  🔄
+                                </Btn>
+                              </div>
+                              <Input dir="ltr" placeholder="أو الصق Post ID يدوياً" value={editPostId} onChange={e => setEditPostId(e.target.value)} />
+                            </div>
                           </Field>
                           <Btn variant="primary" loading={updatingAd} onClick={handleUpdateAd} disabled={!editBudget && !editEndDays && !editPostId}>
                             💾 حفظ التعديلات
