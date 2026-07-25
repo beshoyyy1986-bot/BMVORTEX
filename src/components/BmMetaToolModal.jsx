@@ -2,6 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import PasswordInput from './PasswordInput.jsx';
 
+// ── Permissions this tool actually needs ──────────────────────────
+// Derived from the Graph endpoints in server/routes/meta.js.
+const REQUIRED_SCOPES = [
+  { scope: 'ads_management',      why: 'إنشاء الحملات والإعلانات وتعديلها وإيقافها' },
+  { scope: 'ads_read',            why: 'قراءة الحسابات الإعلانية وحالتها ورصيدها' },
+  { scope: 'business_management', why: 'الوصول لأصول Business Manager' },
+  { scope: 'pages_show_list',     why: 'عرض قائمة صفحاتك' },
+  { scope: 'pages_read_engagement', why: 'قراءة منشورات الصفحة' },
+  { scope: 'pages_manage_posts',  why: 'نشر وحذف منشورات الصفحة (Dark Posts)' },
+];
+
+const GRAPH_EXPLORER_URL = 'https://developers.facebook.com/tools/explorer/';
+const ACCESS_TOKEN_TOOL_URL = 'https://developers.facebook.com/tools/accesstoken/';
+const SYSTEM_USER_DOCS_URL = 'https://www.facebook.com/business/help/503306463479099';
+
 // ── localStorage helpers ──────────────────────────────────────────
 const STORAGE_KEY = 'bm_saved_accounts';
 const ACTIVE_KEY  = 'bm_active_token';
@@ -131,12 +146,147 @@ function ResultBox({ data }) {
 }
 ResultBox.propTypes = { data: PropTypes.object };
 
+// ── Token expiry formatting ───────────────────────────────────────
+function fmtRemaining(expiresAt) {
+  if (expiresAt === 0) return { text: 'لا ينتهي (دائم)', tone: 'good' };
+  if (!expiresAt) return null;
+  const secs = expiresAt - Math.floor(Date.now() / 1000);
+  if (secs <= 0) return { text: 'منتهي', tone: 'bad' };
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return { text: `${d} يوم و ${h} ساعة`, tone: d >= 7 ? 'good' : 'warn' };
+  if (h > 0) return { text: `${h} ساعة و ${m} دقيقة`, tone: 'warn' };
+  return { text: `${m} دقيقة`, tone: 'bad' };
+}
+
+function TokenHelpModal({ onClose }) {
+  const [copied, setCopied] = useState(false);
+  const scopeString = REQUIRED_SCOPES.map(s => s.scope).join(',');
+
+  const copyScopes = () => {
+    navigator.clipboard?.writeText(scopeString);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        onClick={e => e.stopPropagation()}
+        className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-amber-500/25 bg-[#141414] shadow-2xl"
+      >
+        <header className="sticky top-0 flex items-center justify-between border-b border-amber-500/15 bg-[#141414] px-5 py-3">
+          <h3 className="text-sm font-bold text-amber-400">🔑 كيفية الحصول على User Token</h3>
+          <button onClick={onClose} className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10">✕</button>
+        </header>
+
+        <div className="space-y-5 px-5 py-4 text-sm text-slate-300">
+          <section className="space-y-2">
+            <h4 className="font-bold text-amber-400/90">١ · من أين تستخرج التوكن؟</h4>
+            <ol className="list-decimal space-y-1.5 pr-5 text-[13px] leading-relaxed text-slate-400">
+              <li>افتح <a href={GRAPH_EXPLORER_URL} target="_blank" rel="noopener noreferrer" className="text-amber-400 underline">Graph API Explorer</a></li>
+              <li>من قائمة <span className="text-slate-200">Meta App</span> اختر تطبيقك (أنشئ واحداً من نوع Business لو مش موجود)</li>
+              <li>من <span className="text-slate-200">User or Page</span> اختر <span className="text-slate-200">User Token</span></li>
+              <li>من <span className="text-slate-200">Permissions</span> أضف الصلاحيات المذكورة بالأسفل</li>
+              <li>اضغط <span className="text-slate-200">Generate Access Token</span> ووافق على الأذونات</li>
+              <li>انسخ التوكن (يبدأ بـ <span className="font-mono text-amber-400">EAA</span>) والصقه في «إضافة توكن»</li>
+            </ol>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <a href={GRAPH_EXPLORER_URL} target="_blank" rel="noopener noreferrer"
+                 className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-black hover:bg-amber-400">
+                فتح Graph API Explorer ↗
+              </a>
+              <a href={ACCESS_TOKEN_TOOL_URL} target="_blank" rel="noopener noreferrer"
+                 className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-400 hover:bg-amber-500/10">
+                أداة فحص التوكنات ↗
+              </a>
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-amber-400/90">٢ · الصلاحيات المطلوبة فعلاً</h4>
+              <button onClick={copyScopes} className="rounded-md border border-amber-500/30 px-2 py-1 text-[11px] text-amber-400 hover:bg-amber-500/10">
+                {copied ? '✓ تم النسخ' : 'نسخ الكل'}
+              </button>
+            </div>
+            <p className="text-[12px] text-slate-500">هذه بالضبط ما تستخدمه الأداة — لا تضف صلاحيات زائدة.</p>
+            <div className="divide-y divide-white/5 overflow-hidden rounded-xl border border-white/10">
+              {REQUIRED_SCOPES.map(s => (
+                <div key={s.scope} className="flex items-start justify-between gap-3 px-3 py-2">
+                  <code className="flex-shrink-0 font-mono text-[12px] text-amber-400">{s.scope}</code>
+                  <span className="text-left text-[12px] text-slate-400">{s.why}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <h4 className="font-bold text-amber-400/90">٣ · مدة صلاحية التوكن</h4>
+            <div className="space-y-2 text-[13px] leading-relaxed text-slate-400">
+              <p>
+                التوكن الذي تنسخه من Graph API Explorer <span className="text-amber-400">قصير الأجل</span> — ينتهي خلال ساعة أو ساعتين تقريباً.
+                عند انتهائه ستظهر رسالة خطأ برقم <span className="font-mono text-slate-200">190</span>، والحل هو توليد توكن جديد بنفس الخطوات.
+              </p>
+              <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                <p className="mb-1.5 font-bold text-slate-300">تمديد المدة إلى ٦٠ يوماً</p>
+                <p>
+                  يمكن تحويل التوكن القصير إلى <span className="text-amber-400">Long-Lived</span> يدوم ٦٠ يوماً، لكن ذلك
+                  يتطلب <span className="text-slate-200">App Secret</span> الخاص بتطبيقك.
+                  ولأن هذا السر خطير ولا يصح إرساله لأي خدمة خارجية، لا تقوم الأداة بهذه الخطوة نيابةً عنك.
+                  نفّذها بنفسك من متصفحك عبر رابط <span className="font-mono text-[11px] text-slate-300">/oauth/access_token</span> بصيغة{' '}
+                  <span className="font-mono text-[11px] text-slate-300">grant_type=fb_exchange_token</span>.
+                </p>
+              </div>
+              <div className="rounded-xl border border-green-500/25 bg-green-500/5 p-3">
+                <p className="mb-1.5 font-bold text-green-400">الحل الأفضل للعمل المستمر: System User</p>
+                <p>
+                  من <span className="text-slate-200">Business Manager</span> يمكنك إنشاء <span className="text-green-400">System User</span> والحصول على توكن
+                  <span className="text-green-400"> بلا تاريخ انتهاء</span> — لا يعتمد على بقائك مسجّل الدخول، وهو الخيار المناسب للاستخدام طويل المدى.
+                </p>
+                <a href={SYSTEM_USER_DOCS_URL} target="_blank" rel="noopener noreferrer"
+                   className="mt-2 inline-block text-[12px] text-green-400 underline">
+                  شرح إنشاء System User ↗
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-2">
+            <h4 className="font-bold text-amber-400/90">٤ · كيف تعرف أن التوكن يعمل؟</h4>
+            <p className="text-[13px] leading-relaxed text-slate-400">
+              بعد إضافة التوكن اضغط زر <span className="text-amber-400">🔍 فحص</span> بجوار اسم الحساب.
+              سيعرض لك صلاحية التوكن، الوقت المتبقي قبل انتهائه، والصلاحيات الممنوحة مقارنةً بالمطلوبة.
+            </p>
+            <p className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[12px] text-amber-400/80">
+              ملاحظة: تفاصيل الصلاحيات ومدة الانتهاء تظهر فقط إذا كان حسابك يملك دوراً على التطبيق الذي أصدر التوكن.
+              وإلا ستظهر حالة الصلاحية فقط (يعمل / لا يعمل).
+            </p>
+          </section>
+
+          <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
+            <p className="text-[12px] leading-relaxed text-red-300/90">
+              <span className="font-bold">تحذير أمني:</span> التوكن يمنح صلاحية كاملة على حساباتك الإعلانية وصفحاتك.
+              لا تشاركه مع أحد. يُحفظ في متصفحك فقط ولا يُرسل لأي جهة غير Meta.
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+TokenHelpModal.propTypes = { onClose: PropTypes.func };
+
 // ── Main Component ────────────────────────────────────────────────
 export default function BmMetaToolModal({ onClose }) {
   // Account management
   const [accounts, setAccounts]         = useState(loadAccounts);
   const [activeToken, setActiveToken]   = useState(() => localStorage.getItem(ACTIVE_KEY) ?? loadAccounts()[0]?.token ?? '');
   const [showAddToken, setShowAddToken] = useState(false);
+  const [showTokenHelp, setShowTokenHelp] = useState(false);
+  const [tokenInfo, setTokenInfo]        = useState(null);
+  const [checkingToken, setCheckingToken] = useState(false);
   const [newToken, setNewToken]         = useState('');
   const [newProxy, setNewProxy]         = useState('');
   const [useProxy, setUseProxy]         = useState(false);
@@ -234,8 +384,19 @@ export default function BmMetaToolModal({ onClose }) {
     setNewToken(''); setNewProxy(''); setUseProxy(false); setShowAddToken(false);
   };
 
+  const handleCheckToken = async () => {
+    if (!activeToken) return;
+    setCheckingToken(true);
+    setTokenInfo(null);
+    const acc = accounts.find(a => a.token === activeToken);
+    const data = await api('token-info', { token: activeToken, proxy: acc?.proxy ?? null });
+    setTokenInfo(data);
+    setCheckingToken(false);
+  };
+
   const handleSwitchAccount = (acc) => {
     setActiveToken(acc.token);
+    setTokenInfo(null);
     connectWithToken(acc.token, acc.proxy ?? null);
   };
 
@@ -419,6 +580,14 @@ export default function BmMetaToolModal({ onClose }) {
               </div>
             </div>
           )}
+          {accounts.length > 0 && (
+            <Btn size="sm" variant="ghost" loading={checkingToken} onClick={handleCheckToken} disabled={!activeToken}>
+              🔍 فحص
+            </Btn>
+          )}
+          <Btn size="sm" variant="ghost" onClick={() => setShowTokenHelp(true)}>
+            🔑 Get User Token
+          </Btn>
           <Btn size="sm" variant="secondary" onClick={() => setShowAddToken(v => !v)}>
             + إضافة توكن
           </Btn>
@@ -428,6 +597,72 @@ export default function BmMetaToolModal({ onClose }) {
           ✕ إغلاق
         </button>
       </header>
+
+      {showTokenHelp && <TokenHelpModal onClose={() => setShowTokenHelp(false)} />}
+
+      {/* ── Token check result ───────────────────────────── */}
+      {tokenInfo && (
+        <div className="border-b border-amber-500/15 bg-black/40 px-4 py-3">
+          {!tokenInfo.ok ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs text-red-400">❌ {tokenInfo.reason}</span>
+              <button onClick={() => setTokenInfo(null)} className="text-xs text-slate-500 hover:text-slate-300">✕</button>
+            </div>
+          ) : !tokenInfo.valid ? (
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-red-400">❌ التوكن لا يعمل</p>
+                <p className="text-[11px] text-slate-400">{tokenInfo.reason}</p>
+                <button onClick={() => { setTokenInfo(null); setShowTokenHelp(true); }}
+                        className="text-[11px] text-amber-400 underline">
+                  كيف أحصل على توكن جديد؟
+                </button>
+              </div>
+              <button onClick={() => setTokenInfo(null)} className="text-xs text-slate-500 hover:text-slate-300">✕</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-xs font-bold text-green-400">✅ التوكن يعمل</span>
+                  {tokenInfo.name && <span className="text-[11px] text-slate-400">{tokenInfo.name}</span>}
+                  {(() => {
+                    const rem = fmtRemaining(tokenInfo.expires_at);
+                    if (!rem) return null;
+                    const tone = rem.tone === 'good' ? 'text-green-400'
+                               : rem.tone === 'warn' ? 'text-amber-400' : 'text-red-400';
+                    return <span className={`text-[11px] ${tone}`}>⏳ متبقٍ: {rem.text}</span>;
+                  })()}
+                  {tokenInfo.app_name && (
+                    <span className="text-[11px] text-slate-500">التطبيق: {tokenInfo.app_name}</span>
+                  )}
+                </div>
+                <button onClick={() => setTokenInfo(null)} className="text-xs text-slate-500 hover:text-slate-300">✕</button>
+              </div>
+
+              {tokenInfo.details_available && tokenInfo.scopes ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {REQUIRED_SCOPES.map(s => {
+                    const has = tokenInfo.scopes.includes(s.scope);
+                    return (
+                      <span key={s.scope} title={s.why}
+                        className={`rounded-md px-2 py-0.5 font-mono text-[10px] ${
+                          has ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+                        }`}>
+                        {has ? '✓' : '✕'} {s.scope}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  تفاصيل الصلاحيات والمدة غير متاحة — حسابك لا يملك دوراً على التطبيق المُصدِر للتوكن.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Add token form ───────────────────────────────── */}
       {showAddToken && (

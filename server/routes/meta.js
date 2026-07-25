@@ -498,4 +498,64 @@ router.post('/update-ad', async (req, res) => {
   }
 });
 
+// ── Inspect an access token ──────────────────────────────────────
+// debug_token normally needs an app access token. Self-inspection works only
+// when the token owner has a role on the issuing app, so /me is the fallback
+// that still proves whether the token is alive.
+router.post('/token-info', async (req, res) => {
+  const { token, proxy } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ ok: false, reason: 'أدخل Access Token' });
+  }
+
+  const GRAPH = 'https://graph.facebook.com/v21.0';
+  const proxyUrl = proxy ? parseProxyUrl(proxy) : null;
+  const qs = encodeURIComponent(token);
+
+  try {
+    const [meRes, dbgRes] = await Promise.all([
+      proxyFetch(`${GRAPH}/me?fields=id,name&access_token=${qs}`, proxyUrl)
+        .then(r => r.json()).catch(() => null),
+      proxyFetch(`${GRAPH}/debug_token?input_token=${qs}&access_token=${qs}`, proxyUrl)
+        .then(r => r.json()).catch(() => null),
+    ]);
+
+    if (meRes?.error) {
+      const err = meRes.error;
+      const expired = err.code === 190;
+      return res.json({
+        ok: true,
+        valid: false,
+        reason: err.message ?? 'توكن غير صالح',
+        expired,
+      });
+    }
+
+    const d = dbgRes?.data ?? null;
+    // expires_at === 0 means the token carries no expiry (system user / long-lived).
+    const expiresAt = d && typeof d.expires_at === 'number' ? d.expires_at : null;
+    const dataExpiresAt = d && typeof d.data_access_expires_at === 'number'
+      ? d.data_access_expires_at
+      : null;
+
+    res.json({
+      ok: true,
+      valid: true,
+      user_id: meRes?.id ?? d?.user_id ?? null,
+      name: meRes?.name ?? null,
+      app_id: d?.app_id ?? null,
+      app_name: d?.application ?? null,
+      type: d?.type ?? null,
+      scopes: Array.isArray(d?.scopes) ? d.scopes : null,
+      issued_at: typeof d?.issued_at === 'number' ? d.issued_at : null,
+      expires_at: expiresAt,
+      data_access_expires_at: dataExpiresAt,
+      // Null means debug_token was not permitted, so scope/expiry detail is unknown.
+      details_available: !!d,
+    });
+  } catch {
+    res.json({ ok: false, reason: 'انتهت مهلة الاتصال' });
+  }
+});
+
 export default router;
