@@ -27,3 +27,9 @@ coverage/
 
 .vercel
 .env*
+
+# Supabase CLI
+supabase/.temp/
+
+# Vercel temp
+CUsersggAppDataLocalTempopencodevercel_env.json
