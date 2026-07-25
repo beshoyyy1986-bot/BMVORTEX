@@ -1,44 +1,19 @@
 {
-  "name": "vortex-preview-main",
-  "version": "1.0.0",
-  "description": "",
-  "main": "vite.config.js",
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
   "scripts": {
-    "dev": "vite --port 3001 --host 0.0.0.0",
-    "build": "vite build",
-    "preview": "vite preview",
-    "start": "node server/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/beshoyyy1986-bot/BMVORTEX.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "bugs": {
-    "url": "https://github.com/beshoyyy1986-bot/BMVORTEX/issues"
-  },
-  "homepage": "https://github.com/beshoyyy1986-bot/BMVORTEX#readme",
-  "devDependencies": {
-    "@vitejs/plugin-react": "^6.0.4",
-    "vite": "^8.1.5"
-  },
+  "private": true,
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.8",
-    "axios": "^1.18.1",
-    "body-parser": "^1.20.6",
-    "cors": "^2.8.6",
-    "express": "^4.22.2",
-    "framer-motion": "^12.23.6",
-    "https-proxy-agent": "^7.0.6",
-    "multer": "^2.2.0",
-    "prop-types": "^15.8.1",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "undici": "^7.29.0",
-    "ws": "^8.21.1"
+    "@replit/connectors-sdk": "^0.4.1"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.5",
+    "typescript": "~5.9.3"
   }
 }
