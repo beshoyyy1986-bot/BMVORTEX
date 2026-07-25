@@ -1,0 +1,257 @@
+بدل ما كل أداة تعمل Parsing للرابط بطريقتها، اعمل طبقة واحدة (Shared Parser)، وكل الأدوات تعتمد عليها.
+
+
+
+مثلًا:
+
+
+
+URL
+
+        │
+
+        ▼
+
+parseMetaUrl(url)
+
+        │
+
+        ├── act
+
+        ├── asset_id
+
+        ├── business_id
+
+        ├── page_id
+
+        ├── token
+
+        ├── account_id
+
+        └── ...
+
+
+
+وبعدين أي أداة تستخدمها:
+
+
+
+const parsed = parseMetaUrl(url);
+
+
+
+const accountId = parsed.accountId;
+
+const businessId = parsed.businessId;
+
+const token = parsed.token;
+
+
+
+بدل ما يبقى عندك:
+
+
+
+CcFromBmModal فيه Parser.
+
+MetaCardAdder فيه Parser تاني.
+
+BM Tool فيه Parser ثالث.
+
+Token Extractor فيه Parser رابع.
+
+
+
+لأن لو Meta غيرت شكل الروابط، هتعدل ملف واحد فقط.
+
+
+
+والأفضل كمان
+
+
+
+اعمل Utility مثل:
+
+
+
+src/utils/metaParser.js
+
+
+
+وده يكون مسؤول عن:
+
+
+
+تحليل أي رابط Meta.
+
+استخراج كل الـ IDs.
+
+استخراج الـ Query Parameters.
+
+التعامل مع URLSearchParams.
+
+التعامل مع الروابط القديمة والجديدة.
+
+إزالة الـ #.
+
+عمل decodeURIComponent.
+
+
+
+وبعدين كل الأدوات تستورده:
+
+
+
+import { parseMetaUrl } from "@/utils/metaParser";
+
+وكمان
+
+
+
+بدل ما كل أداة تقول:
+
+
+
+const act = ...
+
+
+
+اعمل Object موحد:
+
+
+
+{
+
+  adAccountId,
+
+  businessId,
+
+  assetId,
+
+  pageId,
+
+  pixelId,
+
+  campaignId,
+
+  adsetId,
+
+  adId,
+
+  accessToken
+
+}
+
+
+
+فتبقى أي أداة تاخد اللي محتاجاه فقط.
+
+
+
+بالنسبة للدالة اللي بتطلع التوكن من الـ Cookies
+
+
+
+دي أيضًا يفضل تكون مستقلة.
+
+
+
+يعني مثلًا:
+
+
+
+src/utils/meta/
+
+    parseMetaUrl.js
+
+    extractCookies.js
+
+    extractToken.js
+
+    extractBusiness.js
+
+    extractAdAccount.js
+
+
+
+أو حتى أفضل:
+
+
+
+src/utils/meta/index.js
+
+
+
+يكون فيه:
+
+
+
+parseMetaUrl()
+
+extractToken()
+
+extractCookies()
+
+extractIds()
+
+
+
+وكل الأدوات تستخدم نفس المكتبة.
+
+
+
+يبقى مثلا محرك واحد (Meta Context Extractor).
+
+
+
+يعني أي رابط أو Cookie أو Response يدخل له، وهو يرجع كل المعلومات اللي يقدر يستخرجها مرة واحدة:
+
+
+
+const meta = extractMetaContext(input);
+
+
+
+console.log(meta);
+
+
+
+والنتيجة مثلًا:
+
+
+
+{
+
+  adAccountId: "...",
+
+  businessId: "...",
+
+  assetId: "...",
+
+  pageId: "...",
+
+  pixelId: "...",
+
+  accessToken: "...",
+
+  userId: "...",
+
+  cookies: { ... }
+
+}
+
+
+
+بعد كده كل أداة تستخدم نفس النتيجة بدل ما تعيد تحليل الرابط أو الكوكيز من البداية.
+
+
+
+ده هيقلل تكرار الكود، ويسهل الصيانة، ويخلي إصلاح أي مشكلة في استخراج البيانات يتم في مكان واحد بدل ما تدور عليها في كل أداة.
+
+
+
+
+
+مش ده هو الصح يمشي على كل الادوات الى بتطلب كوكيز و بتستخرج id بيزنس او اكونت id من الروابط و id صفحة , id منشور من روابط
+
+
