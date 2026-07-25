@@ -12,16 +12,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bshoym57/VORTEXBM.git"
+    "url": "git+https://github.com/beshoyyy1986-bot/BMVORTEX.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/bshoym57/VORTEXBM/issues"
+    "url": "https://github.com/beshoyyy1986-bot/BMVORTEX/issues"
   },
-  "homepage": "https://github.com/bshoym57/VORTEXBM#readme",
+  "homepage": "https://github.com/beshoyyy1986-bot/BMVORTEX#readme",
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.4",
     "vite": "^8.1.5"
