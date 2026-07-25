@@ -13,9 +13,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 //
 //   SUPABASE_URL              (server-side)
 //   SUPABASE_SERVICE_ROLE_KEY (server-side, keep secret — this is the secret key)
-const SUPABASE_URL = process.env.SUPABASE_URL;
 const OWNER_EMAIL = 'beshoyyy1986@gmail.com';
-
 const ALL_TOOL_TYPES = [
   'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
   'paypal', 'gateway', 'iban', 'methods', 'debug',
@@ -30,7 +28,7 @@ const PLAN_DEFAULTS = {
 };
 
 function getAdminClient() {
-  const url = SUPABASE_URL;
+  const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
     throw new Error(

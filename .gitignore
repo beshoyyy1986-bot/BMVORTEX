@@ -10,26 +10,23 @@ VORTEXBM.zip
 *.tmp
 *.log
 
-# Environment and secrets
-.env
-.env.local
-.env.*
-!.env.example
-!.env.sample
-
 # Node/build artifacts
 node_modules/
 dist/
 build/
 coverage/
-.vercel/
-.firebase/
-
 .vercel
-.env*
+.firebase/
 
 # Supabase CLI
 supabase/.temp/
 
-# Vercel temp
-CUsersggAppDataLocalTempopencodevercel_env.json
+# Stray files from mistyped shell redirects (e.g. "iongh auth status")
+*vercel_env.json
+gh auth status
+*gh auth status*
+
+# Environment and secrets — keep last so the negations win
+.env*
+!.env.example
+!.env.sample

@@ -24,7 +24,6 @@ minimum_password_length = 8
 enable_signup = true
 enable_confirmations = true
 double_confirm_changes = true
-secure_email_change = true
 
 [auth.email.template.confirmation]
 subject = "أكّد حسابك في VORTEX"

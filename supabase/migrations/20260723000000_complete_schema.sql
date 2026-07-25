@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
   updated_at      timestamptz DEFAULT now()
 );
 
+ALTER TABLE public.site_settings
+  ADD COLUMN IF NOT EXISTS mascot_enabled boolean     DEFAULT true,
+  ADD COLUMN IF NOT EXISTS mascot_size    int         DEFAULT 120,
+  ADD COLUMN IF NOT EXISTS mascot_bottom  int         DEFAULT 50,
+  ADD COLUMN IF NOT EXISTS mascot_right   int         DEFAULT 12,
+  ADD COLUMN IF NOT EXISTS updated_at     timestamptz DEFAULT now();
+
 -- Ensure the default row exists.
 INSERT INTO public.site_settings (id, mascot_enabled, mascot_size, mascot_bottom, mascot_right)
 VALUES (1, true, 120, 50, 12)

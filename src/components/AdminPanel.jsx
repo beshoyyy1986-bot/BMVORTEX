@@ -76,38 +76,40 @@ function StatCard({ label, value, icon, color }) {
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
+// Reads the body as text first: a crashed serverless function replies with plain
+// text, and calling r.json() on that masks the real error behind a parse failure.
+async function parseResponse(r) {
+  const raw = await r.text();
+  let d;
+  try {
+    d = JSON.parse(raw);
+  } catch {
+    throw new Error(`Server error (HTTP ${r.status}): ${raw.slice(0, 200) || r.statusText}`);
+  }
+  if (!r.ok || !d.ok) throw new Error(d.error || `Request failed (HTTP ${r.status})`);
+  return d;
+}
+
 const api = {
   async get(path) {
-    const r = await fetch(`/api/admin${path}`);
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Request failed');
-    return d;
+    return parseResponse(await fetch(`/api/admin${path}`));
   },
   async patch(path, body) {
-    const r = await fetch(`/api/admin${path}`, {
+    return parseResponse(await fetch(`/api/admin${path}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Request failed');
-    return d;
+    }));
   },
   async del(path) {
-    const r = await fetch(`/api/admin${path}`, { method: 'DELETE' });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Request failed');
-    return d;
+    return parseResponse(await fetch(`/api/admin${path}`, { method: 'DELETE' }));
   },
   async post(path, body) {
-    const r = await fetch(`/api/admin${path}`, {
+    return parseResponse(await fetch(`/api/admin${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Request failed');
-    return d;
+    }));
   },
 };
 
