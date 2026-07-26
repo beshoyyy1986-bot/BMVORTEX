@@ -1,15 +1,25 @@
-# [Project name]
+# Vortex Control Panel
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A control-panel web app with a React/Vite frontend and an Express API backend.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+Workflows are managed by Replit — use the workflow panel to start/stop services.
+
+- **Frontend (Vortex):** `pnpm --filter @workspace/vortex run dev` — React/Vite on port 22676, preview path `/`
+- **API Server:** `pnpm --filter @workspace/api-server run dev` — Express on port 8080, preview path `/api`
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+
+## Required environment variables
+
+- `DATABASE_URL` — Postgres connection string (required for `lib/db` and DB-backed routes)
+- `SUPABASE_URL` — Supabase project URL (used by API legacy routes)
+- `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (used by admin routes)
+- `VITE_SUPABASE_URL` — Supabase URL for the frontend client
+- `VITE_SUPABASE_ANON_KEY` — Supabase anon key for the frontend client
+- `VITE_PROXY_API_BASE` — (optional) base URL for proxy API calls from the frontend
 
 ## Stack
 
