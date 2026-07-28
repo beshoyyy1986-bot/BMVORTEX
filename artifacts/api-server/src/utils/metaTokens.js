@@ -13,7 +13,10 @@
  *   extractAll(cookieRaw, html?)     — convenience: run everything in one call
  *   buildFbHeaders(cookieHeader, x)  — standard Facebook fetch headers
  *   fetchAndExtract(cookieHeader, url, opts?) — fetch a FB page + extractAll
- *   getSession(cookieRaw, url?)      — fetch business.facebook.com, return {dtsg,userId,bizId,cookieHeader,origin}
+ *   getSession(cookieRaw, url?)      — HTTP fetch first, auto-falls back to a real
+ *                                       headless browser (Playwright) when FB blocks/redirects
+ *                                       the plain request. Returns {dtsg,userId,bizId,cookieHeader,origin,viaBrowser?}
+ *   getSessionViaBrowser(cookieRaw, url?) — force the Playwright path directly
  *   cookiesToPlaywrightArray(raw)    — any cookie format → Playwright context.addCookies() array
  *
  * ID EXTRACTION — used by every tool that accepts a business ID or ad account ID:
@@ -372,6 +375,19 @@ export function buildFbHeaders(cookieHeader, extra = {}) {
  *   Returns null when cookies are invalid/expired (redirected to login).
  */
 export async function getSession(cookieRaw, url = 'https://business.facebook.com/') {
+  // ── Fast path: plain HTTP fetch (no browser overhead) ───────────────────────
+  const fast = await _getSessionViaFetch(cookieRaw, url);
+  if (fast) return fast;
+
+  // ── Strong fallback: real headless browser via Playwright ──────────────────
+  // Facebook sometimes blocks/redirects plain fetch() requests (bot detection,
+  // JS-rendered token pages, checkpoint interstitials) that a real browser
+  // sails through because it executes JS and looks like a genuine session.
+  return getSessionViaBrowser(cookieRaw, url);
+}
+
+/** Internal: fast HTTP-only session fetch (no browser). Returns null on any failure. */
+async function _getSessionViaFetch(cookieRaw, url) {
   let cookieHeader;
   try {
     cookieHeader = buildCookieHeader(cookieRaw);
@@ -399,7 +415,6 @@ export async function getSession(cookieRaw, url = 'https://business.facebook.com
   if (res.url.includes('login') || res.url.includes('checkpoint')) return null;
 
   const { fbDtsg, userId, bizId } = extractFromHtml(html);
-  // Also pull userId from cookies as fallback
   const cUser = extractFromCookieStr(cookieHeader).cUser;
 
   const resolvedUserId = userId || cUser;
@@ -407,6 +422,77 @@ export async function getSession(cookieRaw, url = 'https://business.facebook.com
 
   const origin = new URL(res.url).origin; // e.g. "https://business.facebook.com"
   return { dtsg: fbDtsg, userId: resolvedUserId, bizId: bizId || null, cookieHeader, origin };
+}
+
+/**
+ * Force-fetch a Facebook session through a real headless browser (Playwright).
+ * Loads the page with the user's cookies injected into a fresh browser context,
+ * lets it fully render (networkidle), then extracts fb_dtsg/userId/bizId from
+ * the rendered HTML — far more resilient than a raw fetch() against anti-bot
+ * checks, redirects, and JS-only token placement.
+ *
+ * Returns null (never throws) when Playwright is unavailable, cookies are
+ * invalid/expired, or the required tokens still can't be found.
+ *
+ * @param {string|Array|Object} cookieRaw
+ * @param {string} [url]
+ * @returns {Promise<{dtsg,userId,bizId,cookieHeader,origin,viaBrowser:true}|null>}
+ */
+export async function getSessionViaBrowser(cookieRaw, url = 'https://business.facebook.com/') {
+  const cookieArray = cookiesToPlaywrightArray(cookieRaw);
+  if (!cookieArray.length) return null;
+
+  let chromium;
+  try {
+    ({ chromium } = await import('playwright'));
+  } catch (_) {
+    return null; // Playwright not installed in this environment
+  }
+
+  let browser;
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled', '--disable-gpu',
+        '--window-size=1366,768',
+      ],
+    });
+
+    const context = await browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      locale: 'ar-EG',
+      viewport: { width: 1366, height: 768 },
+    });
+    await context.addCookies(cookieArray);
+
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 })
+      .catch(() => page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 }));
+    await page.waitForTimeout(1000); // let late-injected DTSG/lsd scripts settle
+
+    const finalUrl = page.url();
+    if (finalUrl.includes('login') || finalUrl.includes('checkpoint')) {
+      await browser.close();
+      return null;
+    }
+
+    const html = await page.content();
+    const cookieHeader = cookieArray.map((c) => `${c.name}=${c.value}`).join('; ');
+    const { fbDtsg, userId, bizId } = extractFromHtml(html);
+    const cUser = extractFromCookieStr(cookieHeader).cUser;
+    await browser.close();
+
+    const resolvedUserId = userId || cUser;
+    if (!fbDtsg || !resolvedUserId) return null;
+
+    const origin = new URL(finalUrl).origin;
+    return { dtsg: fbDtsg, userId: resolvedUserId, bizId: bizId || null, cookieHeader, origin, viaBrowser: true };
+  } catch (_) {
+    if (browser) await browser.close().catch(() => {});
+    return null;
+  }
 }
 
 // ─── 8. Cookies → Playwright context.addCookies() array ─────────────────────
@@ -485,17 +571,35 @@ export async function fetchAndExtract(cookieHeader, url = 'https://www.facebook.
     },
   };
 
-  let resp, html;
+  let resp, html, connectionFailed = false;
   try {
     resp = await fetch(url, fetchOpts);
     html = await resp.text();
   } catch (e) {
-    return { ok: false, error: `خطأ في الاتصال: ${e.message.slice(0, 120)}` };
+    connectionFailed = true;
   }
 
-  // Login redirect = invalid/expired cookies
-  if (resp.url.includes('login') || resp.url.includes('checkpoint')) {
-    return { ok: false, error: 'كوكيز منتهية أو الحساب محظور — حدّث الكوكيز وحاول مجدداً', finalUrl: resp.url };
+  // Login redirect / connection failure → try the strong Playwright fallback
+  // before giving up, since Facebook sometimes blocks plain fetch() requests
+  // that a real rendered browser session handles fine.
+  if (connectionFailed || resp.url.includes('login') || resp.url.includes('checkpoint')) {
+    const viaBrowser = await getSessionViaBrowser(cookieHeader, url);
+    if (viaBrowser) {
+      return {
+        ok: true,
+        finalUrl: viaBrowser.origin,
+        name: null,
+        cookieHeader: viaBrowser.cookieHeader,
+        cUser: viaBrowser.userId,
+        fbDtsg: viaBrowser.dtsg,
+        userId: viaBrowser.userId,
+        bizId: viaBrowser.bizId,
+        viaBrowser: true,
+      };
+    }
+    return connectionFailed
+      ? { ok: false, error: 'خطأ في الاتصال بفيسبوك' }
+      : { ok: false, error: 'كوكيز منتهية أو الحساب محظور — حدّث الكوكيز وحاول مجدداً', finalUrl: resp.url };
   }
 
   const tokens = extractAll(cookieHeader, html);
