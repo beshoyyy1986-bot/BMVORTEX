@@ -17,7 +17,7 @@ import {
   captureSessionWithPlaywright,
   isPlaywrightAvailable,
   detectPlatform,
-} from '../../utils/metaTokens.js';
+} from '../utils/metaTokens.js';
 
 const router = Router();
 
