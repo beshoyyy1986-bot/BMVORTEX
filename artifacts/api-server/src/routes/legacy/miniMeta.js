@@ -3,117 +3,22 @@
  * Mirrors the Python/Playwright tool using server-side HTTP calls to Facebook.
  */
 import { Router } from "express";
+import {
+  buildCookieHeader,
+  extractFromHtml,
+  extractAdAccountId,
+  buildFbHeaders,
+  fetchAndExtract,
+} from "../../utils/metaTokens.js";
 
 const router = Router();
 
-// ── helpers ────────────────────────────────────────────────────────────────
+// ── shim helpers (thin wrappers kept for internal route use) ───────────────
 
-/**
- * Convert cookies in ANY format → "name=value; name=value; ..." header.
- *
- * Accepted formats:
- *  1. Raw string   → "c_user=123; xs=abc; ..."  (semicolons / newlines / spaces)
- *  2. JSON array   → [{"name":"c_user","value":"123"}, ...]  (EditThisCookie / Playwright)
- *  3. JSON object  → {"c_user":"123","xs":"abc"}
- */
-function buildCookieHeader(raw) {
-  if (!raw) throw new Error("الكوكيز فارغة");
-
-  const str = typeof raw === "string" ? raw.trim() : "";
-
-  // ── Try JSON first ─────────────────────────────────────────────────────────
-  if (str.startsWith("[") || str.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(str);
-
-      // Format 2: array of {name, value} objects
-      if (Array.isArray(parsed)) {
-        const header = parsed
-          .filter((c) => c && c.name && c.value != null)
-          .map((c) => `${c.name}=${c.value}`)
-          .join("; ");
-        if (!header) throw new Error("المصفوفة لا تحتوي على كوكيز صالحة");
-        return header;
-      }
-
-      // Format 3: plain object { name: value }
-      if (typeof parsed === "object" && parsed !== null) {
-        const header = Object.entries(parsed)
-          .filter(([k, v]) => k && v != null)
-          .map(([k, v]) => `${k}=${v}`)
-          .join("; ");
-        if (!header) throw new Error("الكائن لا يحتوي على كوكيز صالحة");
-        return header;
-      }
-    } catch (jsonErr) {
-      // Not valid JSON — fall through to raw-string parsing
-    }
-  }
-
-  // ── Format 1: raw cookie string (semicolon / newline / tab separated) ──────
-  const pairs = str
-    .split(/[;\n\r\t]+/)          // split on ; or newlines
-    .map((s) => s.trim())
-    .filter((s) => s.includes("=")); // must be name=value
-
-  if (!pairs.length) throw new Error("لم يتم العثور على كوكيز صالحة — تأكد من الصيغة");
-
-  // Re-join cleanly (values may themselves contain "=" so only split on first "=")
-  return pairs
-    .map((p) => {
-      const eq = p.indexOf("=");
-      const name = p.slice(0, eq).trim();
-      const value = p.slice(eq + 1); // preserve the raw value as-is
-      return `${name}=${value}`;
-    })
-    .join("; ");
-}
-
-/** Build fetch options with Facebook headers + optional proxy note */
-function fbFetchOpts(cookieHeader, extra = {}) {
-  return {
-    method: "GET",
-    headers: {
-      "Cookie": cookieHeader,
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "ar,en-US;q=0.7",
-      "Sec-Fetch-Mode": "navigate",
-    },
-    redirect: "follow",
-    ...extra,
-  };
-}
-
-/** Extract first EAA access token from page HTML */
-function extractToken(html) {
-  const patterns = [
-    /"accessToken":"(EAA[A-Za-z0-9]+)"/,
-    /"token":"(EAA[A-Za-z0-9]+)"/,
-    /(EAA[A-Za-z0-9]{60,})/,
-  ];
-  for (const p of patterns) {
-    const m = html.match(p);
-    if (m) return m[1];
-  }
-  return null;
-}
-
-/** Extract fb_dtsg from HTML */
-function extractFbDtsg(html) {
-  const patterns = [
-    /"token":"([^"]{10,})"/,
-    /DTSGInitialData[^}]*"token":"([^"]+)"/,
-    /"dtsg":\{"token":"([^"]+)"/,
-    /name="fb_dtsg"\s+value="([^"]+)"/,
-  ];
-  for (const p of patterns) {
-    const m = html.match(p);
-    if (m && m[1] && !m[1].startsWith("EAA")) return m[1];
-  }
-  return null;
-}
+const fbFetchOpts = (cookieHeader, extra = {}) => buildFbHeaders(cookieHeader, extra);
+const extractToken  = (html) => extractFromHtml(html).accessToken;
+const extractFbDtsg = (html) => extractFromHtml(html).fbDtsg;
+const extractActId  = (input) => extractAdAccountId(input);
 
 /** Extract LSD token from HTML */
 function extractLsd(html) {
@@ -134,12 +39,6 @@ function extractLsd(html) {
 function extractName(html) {
   const m = html.match(/<title>([^<]+)<\/title>/);
   return m ? m[1].replace(/facebook/gi, "").trim() : "مستخدم";
-}
-
-/** Extract act_ id from URL or raw string */
-function extractActId(input) {
-  const m = input.match(/act[_=](\d+)/) || input.match(/(\d{10,})/);
-  return m ? m[1] : null;
 }
 
 // ── Route 1: Verify & Extract Token ───────────────────────────────────────

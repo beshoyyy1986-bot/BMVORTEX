@@ -3,44 +3,12 @@
  * All proxy Facebook GraphQL API calls using cookies supplied by the client.
  */
 import express from 'express';
+import { buildCookieHeader, getSession } from '../../utils/metaTokens.js';
 
 const router = express.Router();
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function cookiesToHeader(raw) {
-  if (!raw) return '';
-  const str = raw.trim();
-  if (str.startsWith('[')) {
-    try { return JSON.parse(str).map(c => `${c.name}=${c.value}`).join('; '); }
-    catch (_) { /* fall through */ }
-  }
-  return str;
-}
-
-function parseDtsg(html) {
-  const m = html.match(/"DTSGInitialData".*?"token":"([^"]+)"/);
-  return m ? m[1] : null;
-}
-function parseUserId(html) {
-  const m = html.match(/"USER_ID":"(\d+)"/);
-  return m ? m[1] : null;
-}
-function parseBizId(html) {
-  const m = html.match(/"business_id":"(\d+)"/);
-  return m ? m[1] : null;
-}
-
-async function getSession(cookieStr) {
-  const res  = await fetch('https://business.facebook.com/', {
-    headers: { cookie: cookieStr, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-  });
-  const html = await res.text();
-  const dtsg   = parseDtsg(html);
-  const userId = parseUserId(html);
-  const bizId  = parseBizId(html);
-  if (!dtsg || !userId) return null;
-  return { dtsg, userId, bizId, origin: 'https://business.facebook.com' };
-}
+// cookiesToHeader kept as thin shim for any internal callers
+const cookiesToHeader = (raw) => { try { return buildCookieHeader(raw); } catch (_) { return ''; } };
 
 function extractCards(obj, cards = [], depth = 0) {
   if (depth > 25 || !obj || typeof obj !== 'object') return cards;

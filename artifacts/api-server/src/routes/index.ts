@@ -34,6 +34,8 @@ import ccToolsRoutes from "./legacy/ccTools.js";
 import paymentsRoutes from "./legacy/payments.js";
 // @ts-ignore
 import metaCardAdderRoutes from "./legacy/metaCardAdder.js";
+// @ts-ignore
+import extractRoutes from "./legacy/extract.js";
 
 const router: IRouter = Router();
 
@@ -56,5 +58,6 @@ router.use("/bm-creator", bmCreatorRoutes);
 router.use("/payments", paymentsRoutes);
 router.use("/cc-tools", ccToolsRoutes);
 router.use("/meta-card-adder", metaCardAdderRoutes);
+router.use("/extract", extractRoutes);
 
 export default router;

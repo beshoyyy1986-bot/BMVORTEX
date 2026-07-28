@@ -1,51 +1,28 @@
 /**
- * Cookie Parser Utility
- * Extracts fb_dtsg and other tokens from Meta cookies
+ * cookieParser.js — backward-compat re-export
+ *
+ * All logic has moved to metaTokens.js.
+ * Existing imports of this file continue to work unchanged.
  */
 
-function extractFbDtsg(cookies) {
-  if (!cookies) return null;
-  
-  // Try to extract fb_dtsg from cookies
-  const fbDtsgMatch = cookies.match(/fb_dtsg=([^;]+)/);
-  if (fbDtsgMatch) {
-    return decodeURIComponent(fbDtsgMatch[1]);
-  }
-  
-  // Alternative patterns
-  const patterns = [
-    /dtsg=([^;]+)/,
-    /fb_dtsg=([^;]+)/,
-    /"fb_dtsg":"([^"]+)"/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = cookies.match(pattern);
-    if (match) {
-      return decodeURIComponent(match[1]);
-    }
-  }
-  
-  return null;
+import {
+  buildCookieHeader,
+  extractFromCookieStr,
+  extractFromHtml,
+} from './metaTokens.js';
+
+/** @deprecated use extractFromHtml(html).fbDtsg from metaTokens */
+export function extractFbDtsg(cookiesOrHtml) {
+  // Legacy callers pass the raw cookie string; newer callers pass HTML.
+  // Try HTML extraction first, fall back to cookie-string extraction.
+  const fromHtml = extractFromHtml(cookiesOrHtml).fbDtsg;
+  if (fromHtml) return fromHtml;
+  return extractFromCookieStr(cookiesOrHtml).fbDtsgCookie || null;
 }
 
-function extractActorId(cookies) {
-  if (!cookies) return null;
-  
-  // Extract c_user (user ID) from cookies
-  const cUserMatch = cookies.match(/c_user=([^;]+)/);
-  if (cUserMatch) {
-    return decodeURIComponent(cUserMatch[1]);
-  }
-  
-  return null;
+/** @deprecated use extractFromCookieStr(str).cUser from metaTokens */
+export function extractActorId(cookieStr) {
+  return extractFromCookieStr(cookieStr).cUser || null;
 }
 
-function buildCookieHeader(cookies) {
-  if (!cookies) return '';
-  
-  // Clean up cookies and ensure proper format
-  return cookies.trim();
-}
-
-export { extractFbDtsg, extractActorId, buildCookieHeader };
+export { buildCookieHeader };

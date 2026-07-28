@@ -8,51 +8,18 @@
  *   POST /make-default  — run BillingSaveSharedBizCardStateMutation
  */
 import { Router } from 'express';
+import {
+  buildCookieHeader,
+  extractFromHtml,
+  extractFromCookieStr,
+  extractAdAccountId,
+} from '../../utils/metaTokens.js';
 
 const router = Router();
 
-// ── Cookie helpers (reused from miniMeta pattern) ─────────────────────────
-function buildCookieHeader(raw) {
-  if (!raw) throw new Error('الكوكيز فارغة');
-  const str = typeof raw === 'string' ? raw.trim() : '';
-  if (str.startsWith('[') || str.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(str);
-      if (Array.isArray(parsed)) {
-        const h = parsed.filter(c => c?.name && c.value != null).map(c => `${c.name}=${c.value}`).join('; ');
-        if (!h) throw new Error('المصفوفة لا تحتوي على كوكيز صالحة');
-        return h;
-      }
-      if (typeof parsed === 'object') {
-        const h = Object.entries(parsed).filter(([k,v]) => k && v != null).map(([k,v]) => `${k}=${v}`).join('; ');
-        if (!h) throw new Error('الكائن لا يحتوي على كوكيز صالحة');
-        return h;
-      }
-    } catch (_) {}
-  }
-  const pairs = str.split(/[;\n\r\t]+/).map(s => s.trim()).filter(s => s.includes('='));
-  if (!pairs.length) throw new Error('لم يتم العثور على كوكيز صالحة');
-  return pairs.map(p => { const eq = p.indexOf('='); return `${p.slice(0,eq).trim()}=${p.slice(eq+1)}`; }).join('; ');
-}
-
-function extractFbDtsg(html) {
-  const pats = [
-    /DTSGInitialData[^}]*"token":"([^"]+)"/,
-    /"dtsg":\{"token":"([^"]+)"/,
-    /name="fb_dtsg"\s+value="([^"]+)"/,
-    /"token":"([^"]{8,50})"/,
-  ];
-  for (const p of pats) {
-    const m = html.match(p);
-    if (m && m[1] && !m[1].startsWith('EAA')) return m[1];
-  }
-  return null;
-}
-
-function extractUserId(cookieHeader) {
-  const m = cookieHeader.match(/(?:^|;\s*)c_user=(\d+)/);
-  return m ? m[1] : null;
-}
+// ── shim helpers ──────────────────────────────────────────────────────────
+const extractFbDtsg  = (html) => extractFromHtml(html).fbDtsg;
+const extractUserId  = (cookieHeader) => extractFromCookieStr(cookieHeader).cUser;
 
 /** Extract businessId and adAccountId (digits only) from billing URL */
 function parseBillingUrl(url) {
@@ -60,10 +27,12 @@ function parseBillingUrl(url) {
     const u = new URL(url);
     const businessId  = u.searchParams.get('business_id')  || null;
     const adRaw       = u.searchParams.get('ad_account_id') || null;
-    const adAccountId = adRaw ? adRaw.replace(/^act_/i, '') : null;
+    const adAccountId = adRaw
+      ? adRaw.replace(/^act_/i, '')
+      : extractAdAccountId(url);
     return { businessId, adAccountId };
   } catch (_) {
-    return { businessId: null, adAccountId: null };
+    return { businessId: null, adAccountId: extractAdAccountId(url) };
   }
 }
 
