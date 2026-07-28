@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "artifacts/vortex/package.json",
+      "use": "@vercel/static",
+      "config": {
+        "distDir": "artifacts/vortex/dist/public"
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "/artifacts/vortex/dist/public/$1" }
+  ]
+}
