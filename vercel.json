@@ -1,15 +1,11 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "pnpm --filter @workspace/vortex run build",
+  "outputDirectory": "artifacts/vortex/dist/public",
+  "rewrites": [
     {
-      "src": "artifacts/vortex/package.json",
-      "use": "@vercel/static",
-      "config": {
-        "distDir": "artifacts/vortex/dist/public"
-      }
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "/artifacts/vortex/dist/public/$1" }
   ]
 }
