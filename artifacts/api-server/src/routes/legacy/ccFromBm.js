@@ -13,6 +13,7 @@ import {
   extractFromHtml,
   extractFromCookieStr,
   extractAdAccountId,
+  extractBusinessId,
 } from '../../utils/metaTokens.js';
 
 const router = Router();
@@ -21,19 +22,9 @@ const router = Router();
 const extractFbDtsg  = (html) => extractFromHtml(html).fbDtsg;
 const extractUserId  = (cookieHeader) => extractFromCookieStr(cookieHeader).cUser;
 
-/** Extract businessId and adAccountId (digits only) from billing URL */
+/** Extract businessId and adAccountId (digits only) from a billing URL, a bare ID, or "act_" form */
 function parseBillingUrl(url) {
-  try {
-    const u = new URL(url);
-    const businessId  = u.searchParams.get('business_id')  || null;
-    const adRaw       = u.searchParams.get('ad_account_id') || null;
-    const adAccountId = adRaw
-      ? adRaw.replace(/^act_/i, '')
-      : extractAdAccountId(url);
-    return { businessId, adAccountId };
-  } catch (_) {
-    return { businessId: null, adAccountId: extractAdAccountId(url) };
-  }
+  return { businessId: extractBusinessId(url), adAccountId: extractAdAccountId(url) };
 }
 
 const FB_HEADERS = {

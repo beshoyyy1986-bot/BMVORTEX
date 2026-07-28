@@ -7,6 +7,7 @@
  * server starts cleanly and all other routes remain functional.
  */
 import express from 'express';
+import { cookiesToPlaywrightArray, extractBusinessId } from '../../utils/metaTokens.js';
 
 const router = express.Router();
 
@@ -21,26 +22,6 @@ const LAST  = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','D
 
 function randomName() {
   return `${FIRST[Math.floor(Math.random()*FIRST.length)]} ${LAST[Math.floor(Math.random()*LAST.length)]}`;
-}
-
-// ── Cookie parser ─────────────────────────────────────────────────────────────
-function parseCookies(input) {
-  if (!input) return [];
-  const str = input.trim();
-  if (str.startsWith('[')) {
-    try {
-      return JSON.parse(str).map(c => ({
-        name: c.name, value: c.value, domain: c.domain || '.facebook.com', path: c.path || '/',
-      }));
-    } catch (_) { /* fall through */ }
-  }
-  if (str.includes('=')) {
-    return str.split(/;\s*/).filter(Boolean).map(pair => {
-      const [name, ...rest] = pair.trim().split('=');
-      return { name: name.trim(), value: rest.join('=').trim(), domain: '.facebook.com', path: '/' };
-    }).filter(c => c.name);
-  }
-  return [];
 }
 
 // ── Proxy parser ─────────────────────────────────────────────────────────────
@@ -132,7 +113,7 @@ async function addOneCard(card, config) {
       locale:     'en-US',
       timezoneId: 'America/Sao_Paulo',
     });
-    const cookies = parseCookies(config.cookies);
+    const cookies = cookiesToPlaywrightArray(config.cookies);
     if (cookies.length) await context.addCookies(cookies);
     const page = await context.newPage();
     const billingUrl = `https://business.facebook.com/latest/billing_hub/payment_methods/?business_id=${config.businessId}`;
@@ -185,9 +166,10 @@ router.post('/add-cards', async (req, res) => {
     });
   }
 
-  const { cookies, businessId, country, concurrency, cards, proxy } = req.body || {};
+  const { cookies, country, concurrency, cards, proxy } = req.body || {};
+  const businessId = (req.body || {}).businessId ? (extractBusinessId((req.body || {}).businessId) || (req.body || {}).businessId) : null;
   if (!cookies)    return res.json({ ok: false, reason: 'الكوكيز مطلوبة' });
-  if (!businessId) return res.json({ ok: false, reason: 'Business ID مطلوب' });
+  if (!businessId) return res.json({ ok: false, reason: 'Business ID مطلوب (رابط أو رقم البيزنس)' });
   if (!cards)      return res.json({ ok: false, reason: 'البطاقات مطلوبة' });
 
   const lines = cards.split('\n').map(l => l.trim()).filter(Boolean);

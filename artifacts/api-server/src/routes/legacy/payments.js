@@ -3,12 +3,15 @@
  * All proxy Facebook GraphQL API calls using cookies supplied by the client.
  */
 import express from 'express';
-import { buildCookieHeader, getSession } from '../../utils/metaTokens.js';
+import { buildCookieHeader, getSession, extractAdAccountId, extractBusinessId } from '../../utils/metaTokens.js';
 
 const router = express.Router();
 
 // cookiesToHeader kept as thin shim for any internal callers
 const cookiesToHeader = (raw) => { try { return buildCookieHeader(raw); } catch (_) { return ''; } };
+// normalize account_id/biz_id inputs — accepts a link, "act_" form, or bare ID
+const normAcc = (v) => (v ? (extractAdAccountId(v) || v) : v);
+const normBiz = (v) => (v ? (extractBusinessId(v) || v) : v);
 
 function extractCards(obj, cards = [], depth = 0) {
   if (depth > 25 || !obj || typeof obj !== 'object') return cards;
@@ -52,10 +55,11 @@ function extractCards(obj, cards = [], depth = 0) {
 
 // ── POST /api/payments/fetch-cards ─────────────────────────────────────────
 router.post('/fetch-cards', async (req, res) => {
-  const { cookies, account_id } = req.body || {};
+  const { cookies } = req.body || {};
+  const account_id = normAcc((req.body || {}).account_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies provided' });
-  if (!account_id) return res.json({ ok: false, reason: 'account_id مطلوب' });
+  if (!account_id) return res.json({ ok: false, reason: 'account_id مطلوب (رابط أو رقم الحساب الإعلاني)' });
 
   try {
     const auth = await getSession(cookieStr);
@@ -89,7 +93,9 @@ router.post('/fetch-cards', async (req, res) => {
 
 // ── POST /api/payments/remove-card ─────────────────────────────────────────
 router.post('/remove-card', async (req, res) => {
-  const { cookies, account_id, card_id, biz_id } = req.body || {};
+  const { cookies, card_id } = req.body || {};
+  const account_id = normAcc((req.body || {}).account_id);
+  const biz_id      = normBiz((req.body || {}).biz_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies' });
   if (!account_id || !card_id) return res.json({ ok: false, reason: 'account_id + card_id مطلوبين' });
@@ -143,7 +149,8 @@ router.post('/remove-card', async (req, res) => {
 
 // ── POST /api/payments/add-funds ───────────────────────────────────────────
 router.post('/add-funds', async (req, res) => {
-  const { cookies, account_id, card_id, amount } = req.body || {};
+  const { cookies, card_id, amount } = req.body || {};
+  const account_id = normAcc((req.body || {}).account_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies' });
   if (!account_id || !card_id || !amount) return res.json({ ok: false, reason: 'account_id + card_id + amount مطلوبين' });
@@ -201,7 +208,8 @@ router.post('/add-funds', async (req, res) => {
 
 // ── POST /api/payments/set-primary ─────────────────────────────────────────
 router.post('/set-primary', async (req, res) => {
-  const { cookies, account_id, card_id } = req.body || {};
+  const { cookies, card_id } = req.body || {};
+  const account_id = normAcc((req.body || {}).account_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies' });
   if (!account_id || !card_id) return res.json({ ok: false, reason: 'account_id + card_id مطلوبين' });
@@ -255,7 +263,8 @@ router.post('/set-primary', async (req, res) => {
 
 // ── POST /api/payments/switch-old ──────────────────────────────────────────
 router.post('/switch-old', async (req, res) => {
-  const { cookies, biz_id } = req.body || {};
+  const { cookies } = req.body || {};
+  const biz_id = normBiz((req.body || {}).biz_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies' });
 

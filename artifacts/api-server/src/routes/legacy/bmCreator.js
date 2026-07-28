@@ -4,50 +4,14 @@
  * cookies supplied by the client (same pattern as ccFromBm.js).
  */
 import express from 'express';
+import { buildCookieHeader, getSession, extractBusinessId } from '../../utils/metaTokens.js';
 
 const router = express.Router();
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function cookiesToHeader(raw) {
-  if (!raw) return '';
-  const str = raw.trim();
-  // JSON array of cookie objects
-  if (str.startsWith('[')) {
-    try {
-      return JSON.parse(str).map(c => `${c.name}=${c.value}`).join('; ');
-    } catch (_) { /* fall through */ }
-  }
-  return str; // already plain cookie string
-}
-
-function parseDtsg(html) {
-  const m = html.match(/"DTSGInitialData".*?"token":"([^"]+)"/);
-  return m ? m[1] : null;
-}
-
-function parseUserId(html) {
-  const m = html.match(/"USER_ID":"(\d+)"/);
-  return m ? m[1] : null;
-}
-
-function parseBusinessId(html) {
-  const m = html.match(/[?&]business_id=(\d+)/);
-  if (m) return m[1];
-  const m2 = html.match(/"business_id":"(\d+)"/);
-  return m2 ? m2[1] : null;
-}
-
-async function getSession(cookieStr) {
-  const res  = await fetch('https://business.facebook.com/', {
-    headers: { cookie: cookieStr, 'User-Agent': 'Mozilla/5.0' },
-  });
-  const html = await res.text();
-  const dtsg   = parseDtsg(html);
-  const userId = parseUserId(html);
-  const bizId  = parseBusinessId(html);
-  if (!dtsg || !userId) return null;
-  return { dtsg, userId, bizId, origin: 'https://business.facebook.com' };
-}
+// cookiesToHeader kept as thin shim for any internal callers
+const cookiesToHeader = (raw) => { try { return buildCookieHeader(raw); } catch (_) { return ''; } };
+// normalize bm_id — accepts a link, business_id/bid/bm_id param, or bare ID
+const normBiz = (v) => (v ? (extractBusinessId(v) || v) : v);
 
 const BM_NAMES = [
   'Nexora Soluções Digitais','Vortex Mídia Online','Conecta Marketing Digital',
@@ -110,7 +74,8 @@ router.post('/create-bm', async (req, res) => {
 
 // ── POST /api/bm-creator/create-ad-acc ────────────────────────────────────
 router.post('/create-ad-acc', async (req, res) => {
-  const { cookies, bm_id, currency = 'USD', name } = req.body || {};
+  const { cookies, currency = 'USD', name } = req.body || {};
+  const bm_id = normBiz((req.body || {}).bm_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies provided' });
 
@@ -157,7 +122,8 @@ router.post('/create-ad-acc', async (req, res) => {
 router.post('/upload-picture', async (req, res) => {
   // Picture upload requires multipart with the image file pulled from a URL.
   // This endpoint fetches the standard BM profile image and uploads it.
-  const { cookies, bm_id } = req.body || {};
+  const { cookies } = req.body || {};
+  const bm_id = normBiz((req.body || {}).bm_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies provided' });
   if (!bm_id)    return res.json({ ok: false, reason: 'Business ID required' });
@@ -206,7 +172,8 @@ router.post('/upload-picture', async (req, res) => {
 
 // ── POST /api/bm-creator/update-info ──────────────────────────────────────
 router.post('/update-info', async (req, res) => {
-  const { cookies, bm_id } = req.body || {};
+  const { cookies } = req.body || {};
+  const bm_id = normBiz((req.body || {}).bm_id);
   const cookieStr = cookiesToHeader(cookies);
   if (!cookieStr) return res.json({ ok: false, reason: 'No cookies provided' });
   if (!bm_id)    return res.json({ ok: false, reason: 'Business ID required' });

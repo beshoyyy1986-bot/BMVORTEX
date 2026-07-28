@@ -8,11 +8,20 @@
  *   buildCookieHeader(raw)           — raw string | JSON array | JSON object → "name=val; …"
  *   extractFromCookieStr(str)        — pull c_user, xs, fr, datr … from cookie string
  *   extractFromHtml(html)            — pull fb_dtsg, lsd, accessToken, userId, bizId from page HTML
- *   extractAdAccountId(input)        — smart ID from URL params (act, asset, account_id …) or bare number
+ *   extractAdAccountId(input)        — smart ID from link, act_/asset_id/account_id param, or bare number
+ *   extractBusinessId(input)         — smart Business/BM ID from link, business_id/bid/bm_id param, or bare number
  *   extractAll(cookieRaw, html?)     — convenience: run everything in one call
  *   buildFbHeaders(cookieHeader, x)  — standard Facebook fetch headers
  *   fetchAndExtract(cookieHeader, url, opts?) — fetch a FB page + extractAll
  *   getSession(cookieRaw, url?)      — fetch business.facebook.com, return {dtsg,userId,bizId,cookieHeader,origin}
+ *   cookiesToPlaywrightArray(raw)    — any cookie format → Playwright context.addCookies() array
+ *
+ * ID EXTRACTION — used by every tool that accepts a business ID or ad account ID:
+ * the user may paste a raw numeric ID, an ID with the "act_" prefix, or a full
+ * Facebook/Business-Manager URL containing the ID under ANY of several possible
+ * query param names (act, act_id, ad_account_id, account_id, asset_id, aaid for
+ * ad accounts; business_id, biz_id, bid, bm_id for businesses). Both extractors
+ * share the same underlying `_extractId` logic so behavior is identical everywhere.
  */
 
 // ─── 1. Cookie header builder ───────────────────────────────────────────────
@@ -193,10 +202,70 @@ function _first(str, patterns, filter = null) {
 // ─── 4. Smart ad account ID extraction ──────────────────────────────────────
 
 /**
- * Extract the numeric ad account ID from any input:
- *   - URL query params: act, act_, ad_account_id, account_id, asset_id, selected_campaign_ids
- *   - URL path segments: /act_123456/
- *   - Plain string: "act_123456", "act=123456", "123456789012"
+ * Shared ID-extraction engine used by extractAdAccountId() and extractBusinessId().
+ *
+ * Accepts a bare numeric ID, an ID with `bareprefixes` (e.g. "act_123…"), or a
+ * full URL/query-string containing the ID under one of `paramNames`.
+ *
+ * @param {string} input
+ * @param {{ paramNames: string[], bareprefixes?: string[], minLen?: number }} cfg
+ * @returns {string|null}
+ */
+function _extractId(input, { paramNames, bareprefixes = [], minLen = 8 }) {
+  if (!input || typeof input !== 'string') return null;
+  const str = input.trim();
+
+  // ── Bare numeric ID — most common case (user pastes just the ID) ───────────
+  if (new RegExp(`^\\d{${minLen},}$`).test(str)) return str;
+
+  // ── ID with a known bare prefix, no surrounding URL (e.g. "act_123456789") ─
+  for (const prefix of bareprefixes) {
+    const m = str.match(new RegExp(`^${prefix}[_=]?(\\d{${minLen},})$`, 'i'));
+    if (m) return m[1];
+  }
+
+  // ── Try as URL / query string ───────────────────────────────────────────────
+  try {
+    const url = new URL(str.startsWith('http') ? str : `https://x.com/?${str}`);
+    const params = url.searchParams;
+
+    for (const name of paramNames) {
+      const v = params.get(name);
+      if (!v) continue;
+      const clean = v.replace(/^act_/i, '').replace(/[^0-9]/g, '');
+      if (clean.length >= minLen) return clean;
+    }
+
+    // Check path segments, e.g. /act_123456/, /business/123456/
+    for (const prefix of bareprefixes) {
+      const pathMatch = url.pathname.match(new RegExp(`${prefix}[_=]?(\\d{${minLen},})`, 'i'));
+      if (pathMatch) return pathMatch[1];
+    }
+  } catch (_) {
+    // Not a valid URL — continue to regex fallback
+  }
+
+  // ── Regex fallback on the raw string (covers malformed/partial URLs) ───────
+  for (const name of paramNames) {
+    const m = str.match(new RegExp(`${name}[_=](\\d{${minLen},})`, 'i'));
+    if (m) return m[1];
+  }
+  for (const prefix of bareprefixes) {
+    const m = str.match(new RegExp(`${prefix}[_=]?(\\d{${minLen},})`, 'i'));
+    if (m) return m[1];
+  }
+
+  // ── Last resort: any sufficiently long number embedded in the string ───────
+  const m = str.match(new RegExp(`(\\d{${minLen + 2},})`));
+  return m ? m[1] : null;
+}
+
+/**
+ * Extract a numeric Ad Account ID from ANY input the user might paste:
+ *   - Bare number:     "1234567890"
+ *   - "act_" form:     "act_1234567890"
+ *   - Full FB/BM URL with the ID under act, act_id, ad_account_id, account_id,
+ *     asset_id, or aaid — not always "act=", so all known param names are tried.
  *
  * Returns the raw numeric string (without "act_" prefix), or null.
  *
@@ -204,51 +273,26 @@ function _first(str, patterns, filter = null) {
  * @returns {string|null}
  */
 export function extractAdAccountId(input) {
-  if (!input || typeof input !== 'string') return null;
-  const str = input.trim();
+  return _extractId(input, {
+    paramNames:    ['act', 'act_id', 'ad_account_id', 'account_id', 'asset_id', 'aaid', 'selected_campaign_ids'],
+    bareprefixes:  ['act'],
+    minLen: 8,
+  });
+}
 
-  // ── Try as URL ─────────────────────────────────────────────────────────────
-  try {
-    const url = new URL(str.startsWith('http') ? str : `https://x.com/?${str}`);
-    const params = url.searchParams;
-
-    const candidates = [
-      params.get('act'),
-      params.get('act_id'),
-      params.get('ad_account_id'),
-      params.get('account_id'),
-      params.get('asset_id'),
-      params.get('business_id'),       // sometimes the same as act
-      params.get('selected_campaign_ids'),
-    ].filter(Boolean);
-
-    for (const c of candidates) {
-      const clean = c.replace(/^act_/i, '').replace(/[^0-9]/g, '');
-      if (clean.length >= 8) return clean;
-    }
-
-    // Check path for act_XXXX pattern
-    const pathMatch = url.pathname.match(/act[_=](\d{8,})/i);
-    if (pathMatch) return pathMatch[1];
-  } catch (_) {
-    // Not a valid URL — continue to regex
-  }
-
-  // ── Regex patterns on raw string ───────────────────────────────────────────
-  const patterns = [
-    /act[_=](\d{8,})/i,        // act=123, act_123
-    /asset[_=](\d{8,})/i,      // asset_id=123
-    /account[_=](\d{8,})/i,    // account_id=123
-    /^(\d{8,})$/,              // bare number
-    /[^0-9](\d{10,})/,         // long number inside string
-  ];
-
-  for (const p of patterns) {
-    const m = str.match(p);
-    if (m) return m[1];
-  }
-
-  return null;
+/**
+ * Extract a numeric Business Manager (BM) ID from ANY input the user might paste:
+ *   - Bare number:     "1234567890"
+ *   - Full FB/BM URL with the ID under business_id, biz_id, bid, or bm_id.
+ *
+ * @param {string} input
+ * @returns {string|null}
+ */
+export function extractBusinessId(input) {
+  return _extractId(input, {
+    paramNames: ['business_id', 'biz_id', 'bid', 'bm_id'],
+    minLen: 8,
+  });
 }
 
 // ─── 5. Convenience: extract everything at once ──────────────────────────────
@@ -365,7 +409,59 @@ export async function getSession(cookieRaw, url = 'https://business.facebook.com
   return { dtsg: fbDtsg, userId: resolvedUserId, bizId: bizId || null, cookieHeader, origin };
 }
 
-// ─── 8. Fetch a Facebook page and extract all tokens ─────────────────────────
+// ─── 8. Cookies → Playwright context.addCookies() array ─────────────────────
+
+/**
+ * Convert cookies in ANY format (raw string, JSON array, JSON object) into the
+ * array-of-objects shape Playwright's `context.addCookies()` expects.
+ * Shared by any tool that drives a real browser instead of raw HTTP calls.
+ *
+ * @param {string|Array|Object} raw
+ * @returns {Array<{name:string,value:string,domain:string,path:string}>}
+ */
+export function cookiesToPlaywrightArray(raw) {
+  if (!raw) return [];
+
+  const toEntries = (parsed) => {
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((c) => c && c.name && c.value != null)
+        .map((c) => ({ name: c.name, value: String(c.value), domain: c.domain || '.facebook.com', path: c.path || '/' }));
+    }
+    if (typeof parsed === 'object' && parsed !== null) {
+      return Object.entries(parsed)
+        .filter(([k, v]) => k && v != null)
+        .map(([k, v]) => ({ name: k, value: String(v), domain: '.facebook.com', path: '/' }));
+    }
+    return null;
+  };
+
+  if (typeof raw !== 'string') {
+    const entries = toEntries(raw);
+    if (entries) return entries;
+  }
+
+  const str = typeof raw === 'string' ? raw.trim() : '';
+  if (str.startsWith('[') || str.startsWith('{')) {
+    try {
+      const entries = toEntries(JSON.parse(str));
+      if (entries) return entries;
+    } catch (_) {
+      // fall through to raw-string parsing
+    }
+  }
+
+  return str
+    .split(/[;\n\r\t]+/)
+    .map((s) => s.trim())
+    .filter((s) => s.includes('='))
+    .map((p) => {
+      const eq = p.indexOf('=');
+      return { name: p.slice(0, eq).trim(), value: p.slice(eq + 1), domain: '.facebook.com', path: '/' };
+    });
+}
+
+// ─── 9. Fetch a Facebook page and extract all tokens ─────────────────────────
 
 /**
  * Fetch a Facebook page with the user's cookies and extract all tokens from it.
