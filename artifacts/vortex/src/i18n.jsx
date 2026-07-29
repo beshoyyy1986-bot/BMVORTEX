@@ -117,11 +117,10 @@ const dict = {
 
     // Admin gate
     admin_console: "Admin Console",
-    admin_console_sub: "Enter the master password to continue.",
     admin_access: "Admin Access",
-    master_password: "Master password",
-    unlock_admin: "Unlock Admin Panel",
-    invalid_admin_pwd: "Invalid admin password",
+    admin_denied: "Access Denied",
+    admin_denied_sub: "This area is restricted.",
+    admin_denied_body: "Your account does not have administrator privileges. If you believe this is a mistake, contact the site owner.",
 
     // Support
     support_telegram_title: "Contact us on Telegram",
@@ -305,11 +304,10 @@ const dict = {
     logged_in_elsewhere: "تم تسجيل الدخول من مكان آخر.",
 
     admin_console: "وحدة الإدارة",
-    admin_console_sub: "أدخل كلمة المرور الرئيسية للمتابعة.",
     admin_access: "صلاحية الإدارة",
-    master_password: "كلمة المرور الرئيسية",
-    unlock_admin: "فتح لوحة الإدارة",
-    invalid_admin_pwd: "كلمة مرور الإدارة غير صحيحة",
+    admin_denied: "الوصول مرفوض",
+    admin_denied_sub: "هذه المنطقة محظورة.",
+    admin_denied_body: "حسابك لا يملك صلاحيات الإدارة. إذا كنت تعتقد أن هذا خطأ، تواصل مع مالك الموقع.",
 
     support_telegram_title: "تواصل معنا على تيليجرام",
     support_telegram_sub: "ردود سريعة عبر @BaBa_MeDia_0",

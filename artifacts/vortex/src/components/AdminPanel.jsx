@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PasswordInput from './PasswordInput.jsx';
 import { useLang } from '../i18n.jsx';
+import { supabase } from '../lib/supabaseClient.js';
 
 const ALL_TOOL_TYPES = [
   'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
@@ -90,24 +91,38 @@ async function parseResponse(r) {
   return d;
 }
 
+// Every /api/admin route is guarded by requireAdmin on the server, which needs
+// the caller's Supabase JWT. Without this header the whole panel 401s.
+async function authHeaders(extra = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error('Not signed in — please log in again.');
+  return { ...extra, Authorization: `Bearer ${token}` };
+}
+
 const api = {
   async get(path) {
-    return parseResponse(await fetch(`/api/admin${path}`));
+    return parseResponse(await fetch(`/api/admin${path}`, {
+      headers: await authHeaders(),
+    }));
   },
   async patch(path, body) {
     return parseResponse(await fetch(`/api/admin${path}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     }));
   },
   async del(path) {
-    return parseResponse(await fetch(`/api/admin${path}`, { method: 'DELETE' }));
+    return parseResponse(await fetch(`/api/admin${path}`, {
+      method: 'DELETE',
+      headers: await authHeaders(),
+    }));
   },
   async post(path, body) {
     return parseResponse(await fetch(`/api/admin${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
     }));
   },
@@ -180,7 +195,7 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
       onUpdate(user.id, { allowed_types: localTools });
     }, 'Permissions saved ✓');
 
-  const isOwner = user.role === 'owner' || (user.email || '').toLowerCase() === 'beshoyyy1986@gmail.com';
+  const isOwner = user.role === 'owner';
 
   const handleFreeze = () =>
     act(async () => {

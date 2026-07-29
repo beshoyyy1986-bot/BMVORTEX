@@ -79,12 +79,18 @@ function ChunkFallback() {
 }
 
 // ── Icons ─────────────────────────────────────────────────────────
+// Solid padlock with a cut-out keyhole. Reads far better than a thin outline
+// once it sits on top of busy card artwork.
 function LockIcon({ size = 20, className = "" }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="5" y="11" width="14" height="10" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+      className={className} aria-hidden="true" focusable="false">
+      <path d="M7.9 10.6V7.9a4.1 4.1 0 0 1 8.2 0v2.7"
+        stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+      <rect x="4.5" y="10.4" width="15" height="10.5" rx="3.1" fill="currentColor" />
+      <circle cx="12" cy="14.9" r="1.65" fill="#1b1405" fillOpacity="0.85" />
+      <path d="M12 16.1v2.3" stroke="#1b1405" strokeOpacity="0.85"
+        strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   );
 }
@@ -350,9 +356,6 @@ export default function SecureDashboardApp() {
   const [signupForm, setSignupForm] = useState({ email: "", password: "", confirmPassword: "" });
   const [authFieldError, setAuthFieldError] = useState("");
   const [ticketForm, setTicketForm] = useState({ subject: "", message: "", priority: "normal" });
-  const [adminUnlocked, setAdminUnlocked] = useState(
-    () => !!sessionStorage.getItem("vortex_admin_unlocked")
-  );
   const [pathname, setPathname]   = useState(window.location.pathname);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotStatus, setForgotStatus] = useState({ ok: "", error: "", loading: false });
@@ -360,18 +363,13 @@ export default function SecureDashboardApp() {
   const [resetStatus, setResetStatus] = useState({ ok: "", error: "", loading: false });
   const [emailConfirmed, setEmailConfirmed] = useState(true);
   const [msg, setMsg]             = useState("");
-  const [adminMasterPassword, setAdminMasterPassword] = useState("");
   const [securityLocked, setSecurityLocked] = useState(false);
   const [frozen, setFrozen]       = useState(false);
 
-  const MASTER_ADMIN_PASSWORD = (import.meta.env.VITE_ADMIN_MASTER_PASSWORD || "Vortex@2024Admin").trim();
-  const OWNER_EMAIL = "beshoyyy1986@gmail.com";
-  // All emails in this list are treated as permanent site owners — they can
-  // never be frozen, security-locked, or restricted by any admin action.
-  const OWNER_EMAILS = [
-    OWNER_EMAIL,
-    "beshoyyy1986@outlook.com",
-  ];
+  // Ownership is decided by the `role` column on the profile row, never by a
+  // list of e-mails baked into the bundle. The DB is the single source of
+  // truth and the API server re-checks the same column on every admin call,
+  // so nothing here is worth spoofing client-side.
   const SECURITY_LOCK_MARKER = "LOCKED";
   const isDark = theme === "dark";
 
@@ -406,19 +404,12 @@ export default function SecureDashboardApp() {
   const getFingerprint = () =>
     `${navigator.userAgent}-${screen.width}x${screen.height}-${navigator.language}`;
 
-  // Restore admin userInfo if master-password session is still alive
-  useEffect(() => {
-    if (sessionStorage.getItem("vortex_admin_unlocked")) {
-      setUserInfo({ role: "admin", plan: "enterprise", allowed_types: mainCards.map(c => c.type) });
-    }
-  }, []);
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
         setEmailConfirmed(!!session.user.email_confirmed_at);
-        loadAccess(session.user.id, session.user.email);
+        loadAccess(session.user.id);
       }
     });
 
@@ -426,7 +417,7 @@ export default function SecureDashboardApp() {
       setSession(session);
       if (session) {
         setEmailConfirmed(!!session.user.email_confirmed_at);
-        loadAccess(session.user.id, session.user.email);
+        loadAccess(session.user.id);
       } else {
         setUserInfo({ role: "user", plan: "none", allowed_types: [] });
       }
@@ -445,8 +436,7 @@ export default function SecureDashboardApp() {
         filter: `id=eq.${session.user.id}` },
         (payload) => {
           const data = payload.new;
-          const realtimeEmail = (data.email || session?.user?.email || "").toLowerCase();
-          const isOwnerRT = OWNER_EMAILS.includes(realtimeEmail);
+          const isOwnerRT = data.role === "owner";
           if (!isOwnerRT) {
             if (data.is_frozen) { setFrozen(true); supabase.auth.signOut(); return; }
             if (data.current_session_id === SECURITY_LOCK_MARKER) {
@@ -468,13 +458,11 @@ export default function SecureDashboardApp() {
   useEffect(() => {
     if (!session?.user) return;
     const localSid = sessionStorage.getItem("vortex_sid");
-    const heartbeatEmail = (session.user.email || "").toLowerCase();
-    const isOwnerHeartbeat = OWNER_EMAILS.includes(heartbeatEmail);
     const check = async () => {
       try {
         const { data } = await supabase
           .from("profiles")
-          .select("current_session_id, is_frozen")
+          .select("current_session_id, is_frozen, role")
           .eq("id", session.user.id)
           .single();
         if (!data) return;
@@ -482,7 +470,7 @@ export default function SecureDashboardApp() {
           .update({ last_seen_at: new Date().toISOString() })
           .eq("id", session.user.id);
         // Owners are never kicked out by heartbeat checks.
-        if (isOwnerHeartbeat) return;
+        if (data.role === "owner") return;
         if (data.is_frozen) {
           setFrozen(true);
           supabase.auth.signOut();
@@ -510,17 +498,15 @@ export default function SecureDashboardApp() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  async function loadAccess(userId, authEmail) {
+  async function loadAccess(userId) {
     try {
       ensureSupabase();
       const { data } = await supabase.from("profiles").select("*").eq("id", userId).single();
       if (data) {
-        const effectiveEmail = (authEmail || data.email || "").toLowerCase();
-        const isOwnerEmail = OWNER_EMAILS.includes(effectiveEmail);
-        const isOwnerRole  = data.role === "owner";
+        const isOwnerRole = data.role === "owner";
 
         // ── Owners are NEVER blocked by frozen or security-lock ──────────
-        if (!isOwnerEmail && !isOwnerRole) {
+        if (!isOwnerRole) {
           if (data.is_frozen) { setFrozen(true); await supabase.auth.signOut(); return; }
           if (data.current_session_id === SECURITY_LOCK_MARKER) {
             setSecurityLocked(true);
@@ -529,19 +515,9 @@ export default function SecureDashboardApp() {
           }
         }
 
-        // Auto-elevate the owner by email — persist the role so future
-        // logins never need a re-check.
-        if (isOwnerEmail && !isOwnerRole) {
-          const elevated = { ...data, role: "owner", plan: "enterprise", allowed_types: mainCards.map(c => c.type) };
-          setUserInfo(prev => ({ ...elevated, avatar_url: elevated.avatar_url || prev.avatar_url }));
-          await supabase.from("profiles")
-            .update({ role: "owner", plan: "enterprise", allowed_types: mainCards.map(c => c.type) })
-            .eq("id", userId);
-        } else {
-          // Never let a null avatar_url from the row wipe an avatar we already
-          // have in state (e.g. right after an upload before DB round-trips).
-          setUserInfo(prev => ({ ...data, avatar_url: data.avatar_url || prev.avatar_url }));
-        }
+        // Never let a null avatar_url from the row wipe an avatar we already
+        // have in state (e.g. right after an upload before DB round-trips).
+        setUserInfo(prev => ({ ...data, avatar_url: data.avatar_url || prev.avatar_url }));
       }
     } catch (e) { console.error("Error loading access:", e); }
   }
@@ -559,15 +535,12 @@ export default function SecureDashboardApp() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("current_session_id, is_frozen")
+          .select("current_session_id, is_frozen, role")
           .eq("id", data.user.id)
           .single();
 
-        const loginEmail = (data.user.email || loginForm.email || "").toLowerCase();
-        const isOwnerLogin = OWNER_EMAILS.includes(loginEmail);
-
         // ── Owners bypass all frozen / security-lock checks ───────────────
-        if (!isOwnerLogin) {
+        if (profile?.role !== "owner") {
           // Frozen → block immediately with the dedicated screen.
           if (profile?.is_frozen) {
             await supabase.auth.signOut();
@@ -652,16 +625,6 @@ export default function SecureDashboardApp() {
       setTicketForm({ subject: "", message: "", priority: "normal" });
       setMsg(t("ticket_submitted"));
     } catch (err) { setMsg(err.message); }
-  }
-
-  function handleAdminMasterLogin(e) {
-    e.preventDefault();
-    if (adminMasterPassword === MASTER_ADMIN_PASSWORD) {
-      setUserInfo({ role: "admin", plan: "enterprise", allowed_types: mainCards.map(c => c.type) });
-      setAdminMasterPassword("");
-      setAdminUnlocked(true);
-      sessionStorage.setItem("vortex_admin_unlocked", "1");
-    } else { setMsg(t("invalid_admin_pwd")); setAdminMasterPassword(""); }
   }
 
   function navigateTo(path) {
@@ -1056,30 +1019,23 @@ export default function SecureDashboardApp() {
 
   // ── Admin page ─────────────────────────────────────────────────
   if (pathname === "/admin") {
+    // Role comes from the profiles row, which the API server independently
+    // re-verifies on every /api/admin call. This check only hides the UI —
+    // it is not the security boundary.
     const isAdmin = userInfo.role === "admin" || userInfo.role === "owner";
     if (!isAdmin) {
       return (
-        <AuthPageShell isDark={isDark} title={t("admin_console")} subtitle={t("admin_console_sub")}>
-          <form onSubmit={handleAdminMasterLogin}
-            className="w-full max-w-md rounded-2xl border border-amber-600/35 bg-[#1a1816] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-            <span className="mb-3 inline-flex rounded-full bg-amber-600/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{t("admin_access")}</span>
-            {msg && <div className="mb-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-200">{msg}</div>}
-            <div className="mb-4">
-              <PasswordInput required isDark value={adminMasterPassword}
-                onChange={e => setAdminMasterPassword(e.target.value)}
-                className="w-full rounded-xl border border-amber-600/15 bg-black/25 px-4 py-3 text-sm text-slate-100 outline-none"
-                placeholder={t("master_password")} />
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button type="submit" className="rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-amber-700">
-                {t("unlock_admin")}
-              </button>
-              <button type="button" onClick={() => navigateTo("/")}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-slate-300">
-                {t("back")}
-              </button>
-            </div>
-          </form>
+        <AuthPageShell isDark={isDark} title={t("admin_console")} subtitle={t("admin_denied_sub")}>
+          <div className="w-full max-w-md rounded-2xl border border-red-600/35 bg-[#1a1616] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+            <span className="mb-3 inline-flex rounded-full bg-red-600/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-red-200">
+              {t("admin_denied")}
+            </span>
+            <p className="mb-5 text-sm text-slate-400">{t("admin_denied_body")}</p>
+            <button type="button" onClick={() => navigateTo("/")}
+              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-bold text-slate-300 hover:bg-white/10">
+              {t("back")}
+            </button>
+          </div>
         </AuthPageShell>
       );
     }
@@ -1194,7 +1150,6 @@ export default function SecureDashboardApp() {
                           .eq("id", session.user.id);
                       }
                       sessionStorage.removeItem("vortex_sid");
-                      sessionStorage.removeItem("vortex_admin_unlocked");
                       supabase.auth.signOut();
                     }}
                     isDark={isDark}
@@ -1271,16 +1226,53 @@ export default function SecureDashboardApp() {
                       setActiveCard(card);
                     }
                   }}
-                  className={`relative min-h-[160px] overflow-hidden rounded-2xl border p-4 text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  className={`group relative aspect-square overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
                     unlocked ? cls.card : cls.lockedCard
-                  }`}
+                  } ${unlocked ? "" : "cursor-not-allowed"}`}
                 >
+                  {card.logo ? (
+                    <>
+                      {/* The logo IS the card. Each asset already has the tool
+                          name rendered into it, so there is no text caption —
+                          it would just duplicate the artwork. `contain` (not
+                          `cover`) because the assets mix square and wide
+                          ratios, and cropping would cut the name off. */}
+                      <img
+                        src={card.logo}
+                        alt={cardTitle}
+                        title={cardTitle}
+                        loading="lazy"
+                        draggable="false"
+                        className={`absolute inset-0 z-0 h-full w-full object-contain transition-transform duration-500 ${
+                          unlocked ? "group-hover:scale-[1.06]" : ""
+                        }`}
+                      />
+                      <span className="sr-only">{cardTitle}</span>
+                    </>
+                  ) : (
+                    <div className="p-4">
+                      <h3 className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-800"}`}>{cardTitle}</h3>
+                      <p className={`mt-1.5 text-xs ${cls.subtext}`}>{t("card_hint")}</p>
+                    </div>
+                  )}
+
                   {!unlocked && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35">
-                      <div className="flex flex-col items-center gap-2 text-[#d4af37]">
-                        <LockIcon size={44} />
-                        <span className="text-[10px] font-bold tracking-[0.25em]">{t("locked")}</span>
-                      </div>
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5
+                                    bg-black/55 backdrop-blur-[3px]">
+                      {/* Gold coin badge — a raised disc reads as "premium",
+                          where the old flat outline just read as "broken". */}
+                      <span className="relative flex h-[52px] w-[52px] items-center justify-center rounded-full
+                                       bg-gradient-to-br from-[#f7e08c] via-[#d4af37] to-[#96701a]
+                                       ring-1 ring-[#f9ecb8]/70
+                                       shadow-[0_6px_18px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.6)]">
+                        <span className="absolute inset-0 rounded-full ring-2 ring-[#d4af37]/30
+                                         motion-safe:animate-ping" />
+                        <LockIcon size={26} className="relative text-[#3d2c06]" />
+                      </span>
+                      <span className="rounded-full border border-[#d4af37]/40 bg-black/50 px-2.5 py-[3px]
+                                       text-[9px] font-black tracking-[0.3em] text-[#f2da95]">
+                        {t("locked")}
+                      </span>
                     </div>
                   )}
 
@@ -1303,18 +1295,6 @@ export default function SecureDashboardApp() {
                       </span>
                       <span className="text-[10px] font-black tracking-widest text-emerald-400">مجانى</span>
                     </div>
-                  )}
-
-                  {card.logo ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2">
-                      <img src={card.logo} alt={cardTitle} className="h-24 w-24 object-contain" />
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${isDark ? "text-slate-300" : "text-slate-600"}`}>{cardTitle}</h3>
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-800"}`}>{cardTitle}</h3>
-                      <p className={`mt-1.5 text-xs ${cls.subtext}`}>{t("card_hint")}</p>
-                    </>
                   )}
                 </button>
               );

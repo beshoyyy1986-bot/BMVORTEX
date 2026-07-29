@@ -47,3 +47,15 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Secrets — never commit. `.env.example` is the only env file that belongs in git.
+.env
+.env.*
+!.env.example
+*.env
+vercel_env.json
+*vercel_env*.json
+.vercel
+
+# Supabase CLI local state
+supabase/.temp/

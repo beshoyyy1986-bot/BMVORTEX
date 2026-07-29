@@ -128,9 +128,26 @@ router.patch('/user/:id', async (req, res) => {
     if (target?.email?.toLowerCase() === OWNER_EMAIL || target?.role === 'owner') {
       return res.status(403).json({ ok: false, error: 'Owner account is protected and cannot be changed from the admin panel' });
     }
+
+    // Whitelist the patchable columns. Passing req.body straight through let an
+    // admin write ANY column — including `role`, which is a direct path to
+    // minting another owner (or self-promoting) through the admin UI.
+    const PATCHABLE = ['plan', 'allowed_types', 'subscription_expires_at', 'is_frozen', 'current_session_id'];
+    const patch = {};
+    for (const key of PATCHABLE) {
+      if (Object.hasOwn(req.body ?? {}, key)) patch[key] = req.body[key];
+    }
+    const rejected = Object.keys(req.body ?? {}).filter(k => !PATCHABLE.includes(k));
+    if (rejected.length) {
+      return res.status(400).json({ ok: false, error: `Field(s) not editable: ${rejected.join(', ')}` });
+    }
+    if (!Object.keys(patch).length) {
+      return res.status(400).json({ ok: false, error: 'No editable fields supplied' });
+    }
+
     const { error } = await adminClient
       .from('profiles')
-      .update(req.body)
+      .update(patch)
       .eq('id', req.params.id);
     if (error) throw error;
     res.json({ ok: true });
