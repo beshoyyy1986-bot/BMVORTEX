@@ -1185,7 +1185,10 @@ export default function SecureDashboardApp() {
             </div>
           )}
 
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+          {/* Cards are credit-card shaped (85.6:54), so they are short and
+              wide. Fewer columns than a square grid would take, otherwise
+              each card collapses into a thin strip. */}
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {mainCards.map(card => {
               const unlocked = unlockedTypes.includes(card.type);
               const cardTitle = t(`card.${card.type}`);
@@ -1226,7 +1229,7 @@ export default function SecureDashboardApp() {
                       setActiveCard(card);
                     }
                   }}
-                  className={`group relative aspect-[5/4] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  className={`group relative aspect-[85.6/54] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
                     unlocked ? cls.card : cls.lockedCard
                   } ${unlocked ? "" : "cursor-not-allowed"}`}
                 >
