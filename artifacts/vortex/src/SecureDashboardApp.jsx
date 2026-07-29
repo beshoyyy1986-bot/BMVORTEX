@@ -25,7 +25,7 @@ const RemovePaymentModal      = lazy(() => import("./components/RemovePaymentMod
 const AddFundsModal           = lazy(() => import("./components/AddFundsModal.jsx"));
 const AddPrimaryModal         = lazy(() => import("./components/AddPrimaryModal.jsx"));
 
-const HEADER_LOGO_PATH = "/vortex-logo.png";
+const HEADER_LOGO_PATH = "/logo_vortex.png";
 const TELEGRAM_SUPPORT_URL = "https://t.me/BaBa_MeDia_0";
 
 const fundTools = ["Convert Ad Account to Prepaid", "Add Balance From Card", "Enable Billing System"];
@@ -1226,7 +1226,7 @@ export default function SecureDashboardApp() {
                       setActiveCard(card);
                     }
                   }}
-                  className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  className={`group relative aspect-[5/4] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
                     unlocked ? cls.card : cls.lockedCard
                   } ${unlocked ? "" : "cursor-not-allowed"}`}
                 >
@@ -1234,16 +1234,17 @@ export default function SecureDashboardApp() {
                     <>
                       {/* The logo IS the card. Each asset already has the tool
                           name rendered into it, so there is no text caption —
-                          it would just duplicate the artwork. `contain` (not
-                          `cover`) because the assets mix square and wide
-                          ratios, and cropping would cut the name off. */}
+                          it would just duplicate the artwork. `fill` stretches
+                          the art edge to edge: the assets mix square and wide
+                          ratios, and `cover` would crop the name off while
+                          `contain` would letterbox them at different sizes. */}
                       <img
                         src={card.logo}
                         alt={cardTitle}
                         title={cardTitle}
                         loading="lazy"
                         draggable="false"
-                        className={`absolute inset-0 z-0 h-full w-full object-contain transition-transform duration-500 ${
+                        className={`absolute inset-0 z-0 h-full w-full object-fill transition-transform duration-500 ${
                           unlocked ? "group-hover:scale-[1.06]" : ""
                         }`}
                       />
