@@ -1226,7 +1226,7 @@ export default function SecureDashboardApp() {
                       setActiveCard(card);
                     }
                   }}
-                  className={`group relative aspect-square overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  className={`group relative aspect-[4/3] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
                     unlocked ? cls.card : cls.lockedCard
                   } ${unlocked ? "" : "cursor-not-allowed"}`}
                 >
