@@ -1,8 +1,18 @@
 {
   "version": 2,
-  "buildCommand": "pnpm --filter @workspace/vortex run build",
+  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/vortex run build",
   "outputDirectory": "artifacts/vortex/dist/public",
+  "functions": {
+    "api/index.mjs": {
+      "includeFiles": "artifacts/api-server/dist/**",
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

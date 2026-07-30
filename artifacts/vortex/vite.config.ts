@@ -56,6 +56,14 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    // In production Vercel rewrites /api/* to the serverless function; in dev
+    // nothing does, so components calling fetch('/api/...') would get index.html.
+    proxy: {
+      '/api': {
+        target: process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080',
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: false,
     },
