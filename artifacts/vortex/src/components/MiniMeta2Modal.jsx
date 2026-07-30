@@ -2,12 +2,38 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 
 /* ─── small helpers ─────────────────────────────────────── */
-const API = (path, body) =>
-  fetch(`/api/mini-meta${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  }).then((r) => r.json());
+// Every caller treats the resolved value as `{ok, reason, ...}`, so failures
+// are converted into that shape rather than thrown. A rejected promise here
+// would skip the caller's setLoading(false) and hang the button forever.
+// The timeout matters because these routes proxy Facebook, which can stall
+// well past the point a user assumes the app is broken.
+const API = async (path, body, { timeoutMs = 90000 } = {}) => {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
+  try {
+    const r = await fetch(`/api/mini-meta${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: abort.signal,
+    });
+    const text = await r.text();
+    try {
+      return JSON.parse(text);
+    } catch {
+      // An HTML body here means the request fell through to the SPA rewrite
+      // instead of reaching the API.
+      return { ok: false, reason: `استجابة غير متوقعة من الخادم (HTTP ${r.status})` };
+    }
+  } catch (e) {
+    if (e.name === "AbortError") {
+      return { ok: false, reason: "انتهت المهلة — الخادم لم يستجب. حاول مرة أخرى." };
+    }
+    return { ok: false, reason: `تعذّر الاتصال بالخادم: ${e.message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 function Loader() {
   return (
@@ -98,17 +124,20 @@ export default function MiniMeta2Modal({ onClose }) {
     if (!cookies.trim()) return alert(isAr ? "أدخل الكوكيز أولاً" : "Enter cookies first");
     setVerifyLoading(true);
     setVerifyResult(null);
-    const res = await API("/verify-extract", {
-      cookies,
-      proxy: proxy.trim() || null,
-      billing_url: adAccountInput.trim() || null,
-    });
-    setVerifyLoading(false);
-    if (res.ok) {
-      setToken(res.token || "");
-      setAdAccount(res.ad_account || "");
+    try {
+      const res = await API("/verify-extract", {
+        cookies,
+        proxy: proxy.trim() || null,
+        billing_url: adAccountInput.trim() || null,
+      });
+      if (res.ok) {
+        setToken(res.token || "");
+        setAdAccount(res.ad_account || "");
+      }
+      setVerifyResult(res);
+    } finally {
+      setVerifyLoading(false);
     }
-    setVerifyResult(res);
   }
 
   async function handleAddCards() {
@@ -122,12 +151,15 @@ export default function MiniMeta2Modal({ onClose }) {
     };
     setCardsLoading(true);
     setCardsLog([]);
-    const res = await API("/add-cards", body);
-    setCardsLoading(false);
-    if (res.ok) {
-      setCardsLog(res.results || []);
-    } else {
-      setCardsLog([{ card: "—", status: `❌ ${res.reason}` }]);
+    try {
+      const res = await API("/add-cards", body);
+      if (res.ok) {
+        setCardsLog(res.results || []);
+      } else {
+        setCardsLog([{ card: "—", status: `❌ ${res.reason}` }]);
+      }
+    } finally {
+      setCardsLoading(false);
     }
   }
 
@@ -137,22 +169,25 @@ export default function MiniMeta2Modal({ onClose }) {
     setFetchStatus(isAr ? "جاري جلب المنشورات..." : "Fetching posts...");
     setPosts([]);
     setSelectedPost(null);
-    const res = await API("/fetch-page-posts", {
-      cookies,
-      proxy: proxy.trim() || null,
-      page_id: pageInput.trim(),
-      token: token || null,
-    });
-    setFetchingPosts(false);
-    if (res.ok) {
-      setPosts(res.posts || []);
-      setFetchStatus(
-        res.posts?.length
-          ? `✅ ${res.posts.length} ${isAr ? "منشور" : "posts"}`
-          : isAr ? "لا منشورات" : "No posts found"
-      );
-    } else {
-      setFetchStatus(`❌ ${res.reason}`);
+    try {
+      const res = await API("/fetch-page-posts", {
+        cookies,
+        proxy: proxy.trim() || null,
+        page_id: pageInput.trim(),
+        token: token || null,
+      });
+      if (res.ok) {
+        setPosts(res.posts || []);
+        setFetchStatus(
+          res.posts?.length
+            ? `✅ ${res.posts.length} ${isAr ? "منشور" : "posts"}`
+            : isAr ? "لا منشورات" : "No posts found"
+        );
+      } else {
+        setFetchStatus(`❌ ${res.reason}`);
+      }
+    } finally {
+      setFetchingPosts(false);
     }
   }
 
@@ -161,23 +196,26 @@ export default function MiniMeta2Modal({ onClose }) {
     if (!cookies.trim()) return alert(isAr ? "أدخل الكوكيز أولاً" : "Enter cookies first");
     setAdLoading(true);
     setAdResult(null);
-    const res = await API("/boost-ad", {
-      cookies,
-      proxy: proxy.trim() || null,
-      token: token || null,
-      page_id: selectedPost.story_id?.split("_")[0] || pageInput,
-      post_id: selectedPost.post_id,
-      budget,
-      days: parseInt(days) || 1,
-      objective: "POST_ENGAGEMENT",
-      countries: [country.trim().toUpperCase() || "EG"],
-      age_min: ageMin || null,
-      age_max: ageMax || null,
-      gender: parseInt(gender) || 0,
-      ad_account: adAccount || null,
-    });
-    setAdLoading(false);
-    setAdResult(res);
+    try {
+      const res = await API("/boost-ad", {
+        cookies,
+        proxy: proxy.trim() || null,
+        token: token || null,
+        page_id: selectedPost.story_id?.split("_")[0] || pageInput,
+        post_id: selectedPost.post_id,
+        budget,
+        days: parseInt(days) || 1,
+        objective: "POST_ENGAGEMENT",
+        countries: [country.trim().toUpperCase() || "EG"],
+        age_min: ageMin || null,
+        age_max: ageMax || null,
+        gender: parseInt(gender) || 0,
+        ad_account: adAccount || null,
+      });
+      setAdResult(res);
+    } finally {
+      setAdLoading(false);
+    }
   }
 
   /* ── tab content ── */
