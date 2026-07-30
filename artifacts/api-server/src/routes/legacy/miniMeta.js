@@ -58,45 +58,65 @@ router.post("/verify-extract", async (req, res) => {
     "https://www.facebook.com/ads/manager/";
 
   try {
-    // Try main target URL first
-    const resp = await fetch(targetUrl, fbFetchOpts(cookieHeader));
-    const html = await resp.text();
-
-    // Check if redirected to login
-    if (resp.url.includes("login") || resp.url.includes("checkpoint")) {
-      return res.json({
-        ok: false,
-        reason: "كوكيز منتهية أو الحساب محظور — جرب تحديث الكوكيز",
-      });
-    }
-
-    let token = extractToken(html);
-
-    // Fallback: try ads manager directly if billing URL was given
-    if (!token && billing_url?.trim()) {
-      const resp2 = await fetch(
-        "https://www.facebook.com/ads/manager/",
-        fbFetchOpts(cookieHeader)
-      );
-      const html2 = await resp2.text();
-      token = extractToken(html2);
-    }
-
-    const name = extractName(html);
+    let token = null;
+    let name = null;
     let adAccount = null;
-    if (billing_url) {
-      const actId = extractActId(billing_url);
-      if (actId) adAccount = `act_${actId}`;
+
+    // PRIMARY: use getSession (Playwright-first, same as ccFromBm + add-cards)
+    const session = await getSession(cookieHeader, targetUrl, 25000, proxy);
+    if (session?.dtsg) {
+      token = session.accessToken || null;
+      if (session.html) {
+        name = extractName(session.html);
+        if (!adAccount) {
+          const m = session.html.match(/act[_=](\d+)/);
+          if (m) adAccount = `act_${m[1]}`;
+        }
+      }
     }
+
+    // FALLBACK: HTTP fetch HTML extraction (if session failed or no accessToken)
+    if (!token) {
+      const resp = await fetch(targetUrl, fbFetchOpts(cookieHeader));
+      const html = await resp.text();
+
+      if (resp.url.includes("login") || resp.url.includes("checkpoint")) {
+        return res.json({
+          ok: false,
+          reason: "كوكيز منتهية أو الحساب محظور — جرب تحديث الكوكيز",
+        });
+      }
+
+      token = extractToken(html);
+      if (!token && billing_url?.trim()) {
+        const resp2 = await fetch(
+          "https://www.facebook.com/ads/manager/",
+          fbFetchOpts(cookieHeader)
+        );
+        const html2 = await resp2.text();
+        token = extractToken(html2);
+      }
+
+      if (!name) name = extractName(html);
+    }
+
+    if (!name) name = extractName("");
+
     if (!adAccount) {
-      const m = html.match(/act[_=](\d+)/);
-      if (m) adAccount = `act_${m[1]}`;
+      if (billing_url) {
+        const actId = extractActId(billing_url);
+        if (actId) adAccount = `act_${actId}`;
+      }
+      if (!adAccount) {
+        const m = (session?.html || "").match(/act[_=](\d+)/);
+        if (m) adAccount = `act_${m[1]}`;
+      }
     }
 
     return res.json({
       ok: true,
       token: token || null,
-      name,
+      name: name || "مستخدم",
       ad_account: adAccount,
     });
   } catch (e) {
