@@ -177,9 +177,12 @@ function ProfileDropdown({ session, userInfo, onSignOut, onAvatarUpdate, isDark 
   const dropdownPanel = open && ReactDOM.createPortal(
     <>
       <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+      {/* Portals render outside the dashboard's theme scope, so this panel
+          carries `vx-light` itself — otherwise the shared muted-text tokens
+          would stay on their dark values over a white dropdown. */}
       <div
-        className={`fixed z-[9999] w-64 rounded-2xl border shadow-2xl ${
-          isDark ? "border-white/10 bg-[#1e1e1e]" : "border-slate-200 bg-white"
+        className={`fixed z-[9999] w-64 overflow-hidden rounded-2xl border shadow-2xl ${
+          isDark ? "border-white/15 bg-[#1b202b]" : "vx-light border-slate-300 bg-white"
         }`}
         style={{ top: dropdownPos.top, right: dropdownPos.right }}
       >
@@ -289,12 +292,18 @@ ProfileDropdown.propTypes = {
 // ── Auth page shell ───────────────────────────────────────────────
 function AuthPageShell({ title, subtitle, children, isDark }) {
   return (
-    <div className={`flex min-h-screen flex-col items-center justify-center gap-6 p-6 ${
-      isDark ? "bg-[#0f0f0f]" : "bg-slate-100"
+    <div className={`flex min-h-screen flex-col items-center justify-center gap-7 p-6 ${
+      isDark ? "bg-[#0a0c10]" : "vx-light bg-[#eef1f6]"
     }`}>
-      <div className="text-center">
-        <h1 className={`text-2xl font-black ${isDark ? "text-slate-100" : "text-slate-800"}`}>{title}</h1>
-        {subtitle && <p className={`mt-1 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>{subtitle}</p>}
+      {/* A clear step between page title and supporting line: the title is
+          the only 30px element on screen, the subtitle is muted body text. */}
+      <div className="max-w-md text-center">
+        <h1 className={`text-[30px] font-black leading-tight tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>{title}</h1>
+        {subtitle && (
+          <p className={`mx-auto mt-2 max-w-sm text-sm leading-relaxed ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+            {subtitle}
+          </p>
+        )}
       </div>
       {children}
     </div>
@@ -374,22 +383,35 @@ export default function SecureDashboardApp() {
   const isDark = theme === "dark";
 
   // ── Theme-aware class helpers ──────────────────────────────────
+  // `themeScope` switches the design tokens in index.css for the whole
+  // subtree. Only screens that actually honour the light/dark toggle get
+  // it — the tool pages are dark-only by design and must not inherit it.
+  const themeScope = isDark ? "" : "vx-light";
+
   const cls = {
     headerBorder: isDark ? "border-white/10"  : "border-slate-200",
-    btn:          isDark ? "bg-[#2a2a2a] border-slate-600/40 text-slate-200 hover:bg-[#333]"
-                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50",
-    card:         isDark ? "border-slate-600/30 bg-[#2a2a2a] text-slate-100"
-                        : "border-slate-200 bg-white text-slate-800 shadow-sm hover:shadow-md",
-    lockedCard:   isDark ? "border-yellow-600/30 bg-[#1c1b16]"
-                        : "border-amber-300/60 bg-amber-50",
-    modal:        isDark ? "border-slate-600/35 bg-[#222] text-slate-100"
+    // Secondary buttons need a border you can see and a surface a step off
+    // the header, otherwise they read as plain text.
+    btn:          isDark ? "bg-[#2b3240] border-slate-400/35 text-slate-100 hover:bg-[#353d4d] hover:border-slate-300/50"
+                        : "bg-white border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400",
+    // Cards are the primary objects on the page — they get the deepest
+    // elevation of anything in the grid so the layer order is obvious.
+    card:         isDark ? "border-slate-400/25 bg-[#232936] text-slate-100 shadow-[0_2px_4px_rgba(0,0,0,0.4),0_14px_30px_-14px_rgba(0,0,0,0.85)] hover:border-blue-400/50 hover:shadow-[0_4px_8px_rgba(0,0,0,0.45),0_20px_40px_-14px_rgba(0,0,0,0.9)]"
+                        : "border-slate-300/80 bg-white text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.08),0_10px_24px_-12px_rgba(15,23,42,0.25)] hover:border-blue-400/60 hover:shadow-[0_4px_10px_rgba(15,23,42,0.12),0_18px_36px_-14px_rgba(15,23,42,0.3)]",
+    lockedCard:   isDark ? "border-amber-500/35 bg-[#211d13] shadow-[0_2px_4px_rgba(0,0,0,0.4),0_12px_26px_-14px_rgba(0,0,0,0.8)]"
+                        : "border-amber-400/70 bg-amber-50 shadow-[0_1px_2px_rgba(15,23,42,0.06),0_8px_20px_-12px_rgba(15,23,42,0.2)]",
+    modal:        isDark ? "border-slate-400/30 bg-[#1b202b] text-slate-100"
                         : "border-slate-200 bg-white text-slate-900",
     input:        isDark ? "border-blue-400/15 bg-black/25 text-slate-100 placeholder:text-slate-500"
                         : "border-slate-300 bg-white text-slate-900 placeholder:text-slate-400",
     subtext:      isDark ? "text-slate-400" : "text-slate-500",
+    // Field labels sit directly above their input and were the hardest
+    // thing to find on the page. Uppercase + weight + spacing makes the
+    // label/field pairing scannable at a glance.
     label:        isDark ? "text-slate-400" : "text-slate-600",
   };
   const fieldCls = `w-full rounded-xl border px-4 py-3 text-sm outline-none ${cls.input}`;
+  const labelCls = `mb-1.5 block text-xs font-bold uppercase tracking-wide ${cls.label}`;
 
   const isPrivileged = userInfo.role === "admin" || userInfo.role === "owner";
 
@@ -716,7 +738,11 @@ export default function SecureDashboardApp() {
         title={isLogin ? t("auth_signin_title") : t("auth_signup_title")}
         subtitle={isLogin ? t("auth_signin_sub") : t("auth_signup_sub")}
       >
-        <form onSubmit={submitAuth} className={`w-full max-w-md rounded-2xl border p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ${isDark ? "border-slate-600/35 bg-[#222] text-slate-100" : "border-slate-200 bg-white text-slate-900"}`}>
+        <form onSubmit={submitAuth} className={`w-full max-w-md rounded-2xl border p-7 ${
+          isDark
+            ? "border-white/20 bg-[#161b24] text-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.5),0_32px_80px_-24px_rgba(0,0,0,0.9)]"
+            : "border-slate-300 bg-white text-slate-900 shadow-[0_2px_8px_rgba(15,23,42,0.06),0_28px_64px_-24px_rgba(15,23,42,0.3)]"
+        }`}>
           <span className={`mb-3 inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${isLogin ? "bg-blue-500/15 text-blue-500" : "bg-emerald-500/15 text-emerald-500"}`}>
             {isLogin ? t("auth_secure_signin") : t("auth_create_account")}
           </span>
@@ -725,7 +751,7 @@ export default function SecureDashboardApp() {
           {msg && <div className="mb-3 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm text-blue-500">{msg}</div>}
 
 
-          <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>{t("email")}</label>
+          <label className={labelCls}>{t("email")}</label>
           <input type="email" required autoComplete="email"
             value={isLogin ? loginForm.email : signupForm.email}
             onChange={e => {
@@ -735,7 +761,7 @@ export default function SecureDashboardApp() {
             }}
             className={`mb-3 ${fieldCls}`} placeholder={t("email_placeholder")} />
 
-          <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>{t("password")}</label>
+          <label className={labelCls}>{t("password")}</label>
           <div className="mb-3">
             <PasswordInput required autoComplete={isLogin ? "current-password" : "new-password"}
               isDark={isDark}
@@ -750,7 +776,7 @@ export default function SecureDashboardApp() {
 
           {!isLogin && (
             <>
-              <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>{t("confirm_password")}</label>
+              <label className={labelCls}>{t("confirm_password")}</label>
               <div className="mb-3">
                 <PasswordInput required autoComplete="new-password" isDark={isDark} value={signupForm.confirmPassword}
                   onChange={e => setSignupForm(p => ({ ...p, confirmPassword: e.target.value }))}
@@ -818,8 +844,12 @@ export default function SecureDashboardApp() {
   if (pathname === "/forgot-password") {
     return (
       <AuthPageShell isDark={isDark} title={t("forgot_title")} subtitle={t("forgot_sub")}>
-        <form onSubmit={handleForgotPassword} className={`w-full max-w-md rounded-2xl border p-6 ${isDark ? "border-slate-500/25 bg-[#222]" : "border-slate-200 bg-white"}`}>
-          <label className={`mb-2 block text-sm ${cls.label}`}>{t("email")}</label>
+        <form onSubmit={handleForgotPassword} className={`w-full max-w-md rounded-2xl border p-7 ${
+          isDark
+            ? "border-white/20 bg-[#161b24] shadow-[0_2px_8px_rgba(0,0,0,0.5),0_32px_80px_-24px_rgba(0,0,0,0.9)]"
+            : "border-slate-300 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.06),0_28px_64px_-24px_rgba(15,23,42,0.3)]"
+        }`}>
+          <label className={labelCls}>{t("email")}</label>
           <input type="email" required value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
             className={`mb-4 ${fieldCls}`}
             placeholder={t("email_placeholder")} />
@@ -841,14 +871,18 @@ export default function SecureDashboardApp() {
   if (pathname === "/reset-password") {
     return (
       <AuthPageShell isDark={isDark} title={t("reset_title")} subtitle={t("reset_sub")}>
-        <form onSubmit={handleResetPassword} className={`w-full max-w-md rounded-2xl border p-6 ${isDark ? "border-blue-400/25 bg-[#141a22]" : "border-slate-200 bg-white"}`}>
-          <label className={`mb-2 block text-sm ${cls.label}`}>{t("new_password")}</label>
+        <form onSubmit={handleResetPassword} className={`w-full max-w-md rounded-2xl border p-7 ${
+          isDark
+            ? "border-white/20 bg-[#161b24] shadow-[0_2px_8px_rgba(0,0,0,0.5),0_32px_80px_-24px_rgba(0,0,0,0.9)]"
+            : "border-slate-300 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.06),0_28px_64px_-24px_rgba(15,23,42,0.3)]"
+        }`}>
+          <label className={labelCls}>{t("new_password")}</label>
           <div className="mb-3">
             <PasswordInput required minLength={8} isDark={isDark} value={resetForm.password}
               onChange={e => setResetForm(p => ({ ...p, password: e.target.value }))}
               className={fieldCls} placeholder={t("min8")} />
           </div>
-          <label className={`mb-2 block text-sm ${cls.label}`}>{t("confirm_new_password")}</label>
+          <label className={labelCls}>{t("confirm_new_password")}</label>
           <div className="mb-4">
             <PasswordInput required minLength={8} isDark={isDark} value={resetForm.confirmPassword}
               onChange={e => setResetForm(p => ({ ...p, confirmPassword: e.target.value }))}
@@ -872,7 +906,7 @@ export default function SecureDashboardApp() {
   // ── Payment Tools — standalone pages ──────────────────────────
   if (pathname === "/remove-payment") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <RemovePaymentModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -881,7 +915,7 @@ export default function SecureDashboardApp() {
   }
   if (pathname === "/add-funds-meta") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <AddFundsModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -890,7 +924,7 @@ export default function SecureDashboardApp() {
   }
   if (pathname === "/add-primary-cc") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="primary" />
         </Suspense>
@@ -899,7 +933,7 @@ export default function SecureDashboardApp() {
   }
   if (pathname === "/switch-bm-old") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="old" />
         </Suspense>
@@ -910,7 +944,7 @@ export default function SecureDashboardApp() {
   // ── Vortex Meta Tools — standalone page ───────────────────────
   if (pathname === "/vortex-meta-tools") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <VortexMetaToolsModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -921,7 +955,7 @@ export default function SecureDashboardApp() {
   // ── BM Creator — standalone page ──────────────────────────────
   if (pathname === "/bm-creator") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <BmCreatorModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -932,7 +966,7 @@ export default function SecureDashboardApp() {
   // ── CC FROM BM — standalone page ──────────────────────────────
   if (pathname === "/cc-from-bm") {
     return (
-      <div className="min-h-screen w-full bg-[#09090b]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <CcFromBmModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -943,7 +977,7 @@ export default function SecureDashboardApp() {
   // ── Vortex CC Tools — standalone page ─────────────────────────
   if (pathname === "/cc-tools") {
     return (
-      <div className="min-h-screen w-full bg-[#0d0f14]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <VortexCCToolsPage onClose={() => navigateTo("/")} />
         </Suspense>
@@ -954,7 +988,7 @@ export default function SecureDashboardApp() {
   // ── Add Funds — standalone page (+ sub-routes) ────────────────
   if (pathname === "/funds" || pathname.startsWith("/funds/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0d0f14]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <FundsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
         </Suspense>
@@ -965,7 +999,7 @@ export default function SecureDashboardApp() {
   // ── Add Cards — standalone page (+ sub-routes) ─────────────────
   if (pathname === "/cards" || pathname.startsWith("/cards/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0d0f14]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <CardsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} closeLabel={t("close")} />
         </Suspense>
@@ -976,7 +1010,7 @@ export default function SecureDashboardApp() {
   // ── Ads Creation — standalone page (+ sub-routes) ──────────────
   if (pathname === "/ads" || pathname.startsWith("/ads/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0d0f14]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <AdvertisingToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
         </Suspense>
@@ -987,7 +1021,7 @@ export default function SecureDashboardApp() {
   // ── BM Meta Tool — standalone page ────────────────────────────
   if (pathname === "/bm-meta-tool") {
     return (
-      <div className="min-h-screen w-full bg-[#0d0d0d]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <BmMetaToolModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -998,7 +1032,7 @@ export default function SecureDashboardApp() {
   // ── Meta Ads One Way — standalone page ────────────────────────
   if (pathname === "/meta-ads-one-way") {
     return (
-      <div className="min-h-screen w-full bg-[#0d0d0d]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <MetaAdsOneWayModal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -1009,7 +1043,7 @@ export default function SecureDashboardApp() {
   // ── Mini Meta 2$ — standalone page ──��─────────────────────────
   if (pathname === "/mini-meta-2") {
     return (
-      <div className="min-h-screen w-full bg-[#0f0f0f]">
+      <div className="min-h-screen w-full bg-[#0a0c10]">
         <Suspense fallback={<ChunkFallback />}>
           <MiniMeta2Modal onClose={() => navigateTo("/")} />
         </Suspense>
@@ -1040,7 +1074,7 @@ export default function SecureDashboardApp() {
       );
     }
     return (
-      <div className="min-h-screen w-full overflow-auto bg-[#080a0c] p-4">
+      <div className="min-h-screen w-full overflow-auto bg-[#0a0c10] p-4">
         <Suspense fallback={<ChunkFallback />}>
           <AdminPanel onClose={() => navigateTo("/")} />
         </Suspense>
@@ -1051,25 +1085,38 @@ export default function SecureDashboardApp() {
   // ── Main dashboard (fluid, scrolling page — zoom reflows content) ─
   return (
     <div dir={isArabic ? "rtl" : "ltr"}
-      className={`min-h-screen w-full transition-colors duration-300 ${
-        isDark ? "bg-[#0f0f0f] text-white" : "bg-slate-100 text-slate-900"
+      className={`min-h-screen w-full transition-colors duration-300 ${themeScope} ${
+        isDark ? "bg-[#07090d] text-white" : "bg-[#e6eaf1] text-slate-900"
       }`}>
+      {/* The content column is lifted off the page with a visible edge and a
+          cast shadow, so the app reads as a surface sitting on a backdrop
+          rather than as one continuous flat field. */}
       <div className={`relative mx-auto min-h-screen w-full max-w-[1600px] border-x ${
-        isDark ? "border-white/10 bg-[#1a1a1a]" : "border-slate-200 bg-white"
+        isDark
+          ? "border-white/15 bg-[#12151c] shadow-[0_0_80px_rgba(0,0,0,0.7)]"
+          : "border-slate-300 bg-white shadow-[0_0_60px_rgba(15,23,42,0.12)]"
       }`}>
 
         {/* Background gradient */}
         <div className={`pointer-events-none absolute inset-0 ${
-          isDark ? "bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.04),transparent_28%),linear-gradient(135deg,#222,#111_55%,#1a1a1a)]"
-                 : "bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.04),transparent_28%),linear-gradient(135deg,#f8fafc,#eef2f7_55%,#e2e8f0)]"
+          isDark ? "bg-[radial-gradient(circle_at_20%_10%,rgba(92,155,255,0.07),transparent_32%),linear-gradient(135deg,#1a1f2a,#0d1016_55%,#141922)]"
+                 : "bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.06),transparent_30%),linear-gradient(135deg,#ffffff,#f4f7fb_55%,#eaeff6)]"
         }`} />
 
         {/* ── Header ─────────────────────────────────────── */}
-        <header className={`sticky top-0 z-20 border-b px-4 py-2.5 backdrop-blur-md md:px-6 ${cls.headerBorder}`}
+        {/* The header is the highest layer on the page: a brighter surface,
+            a lit top edge and a shadow that separates it from the grid it
+            scrolls over. */}
+        <header className={`sticky top-0 z-20 border-b px-4 py-2.5 backdrop-blur-md md:px-6 ${
+          isDark ? "border-white/20" : "border-slate-300"
+        }`}
           style={isDark ? {
-            background: "linear-gradient(135deg, rgba(10,10,10,0.97) 0%, rgba(20,20,22,0.97) 40%, rgba(12,12,14,0.97) 70%, rgba(18,18,20,0.97) 100%)",
-            boxShadow: "0 1px 0 rgba(255,255,255,0.04), 0 4px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)",
-          } : { background: "rgba(255,255,255,0.92)", boxShadow: "0 1px 12px rgba(0,0,0,0.08)" }}
+            background: "linear-gradient(135deg, rgba(26,31,42,0.97) 0%, rgba(20,25,34,0.97) 45%, rgba(24,29,39,0.97) 100%)",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.10) inset, 0 6px 28px rgba(0,0,0,0.75)",
+          } : {
+            background: "rgba(255,255,255,0.96)",
+            boxShadow: "0 1px 0 rgba(255,255,255,0.9) inset, 0 4px 18px rgba(15,23,42,0.12)",
+          }}
         >
           <div className="flex items-center gap-3 flex-wrap">
             {/* Logo + site name */}
@@ -1185,10 +1232,28 @@ export default function SecureDashboardApp() {
             </div>
           )}
 
+          {/* A titled, ruled section header. Without it the grid butted
+              straight against the header bar and the page had exactly one
+              level of hierarchy. */}
+          <div className="mb-4 flex items-end justify-between gap-4 border-b pb-3"
+            style={{ borderColor: isDark ? "rgba(160,175,200,0.20)" : "rgba(15,23,42,0.13)" }}>
+            <div>
+              <h2 className={`text-lg font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}>
+                {t("control")}
+              </h2>
+              <p className={`mt-0.5 text-xs ${cls.subtext}`}>{t("card_hint")}</p>
+            </div>
+            <span className={`hidden shrink-0 rounded-full border px-3 py-1 text-xs font-bold sm:inline-block ${
+              isDark ? "border-white/20 bg-white/10 text-slate-200" : "border-slate-300 bg-slate-100 text-slate-600"
+            }`}>
+              {unlockedTypes.length} / {mainCards.length}
+            </span>
+          </div>
+
           {/* Cards are credit-card shaped (85.6:54), so they are short and
               wide. Fewer columns than a square grid would take, otherwise
               each card collapses into a thin strip. */}
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {mainCards.map(card => {
               const unlocked = unlockedTypes.includes(card.type);
               const cardTitle = t(`card.${card.type}`);
@@ -1309,7 +1374,7 @@ export default function SecureDashboardApp() {
         {/* ── Modals ──────────────────────────────────────── */}
         <AnimatePresence>
           {activeCard && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/70 p-4 sm:p-6"
+            <motion.div className="fixed inset-0 z-50 flex items-center justify-center overflow-auto bg-black/80 p-4 backdrop-blur-sm sm:p-6"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <Suspense fallback={<ChunkFallback />}>
                 {activeCard.type === "proxy" ? (
@@ -1325,10 +1390,14 @@ export default function SecureDashboardApp() {
                     <IBANToolModal onClose={() => setActiveCard(null)} closeLabel={t("close")} />
                   </div>
                 ) : (
-                  <div className={`w-full max-w-4xl rounded-2xl border p-6 ${isDark ? "border-blue-400/25 bg-[#141a22]" : "border-slate-200 bg-white"}`}>
-                    <div className="mb-5 flex items-center justify-between">
-                      <h3 className="text-xl font-black">{t(`card.${activeCard.type}`)}</h3>
-                      <button onClick={() => setActiveCard(null)} className={`rounded-xl border px-4 py-2 text-sm ${cls.btn}`}>{t("close")}</button>
+                  <div className={`w-full max-w-4xl rounded-2xl border p-6 shadow-2xl ${themeScope} ${cls.modal}`}>
+                    {/* Ruled title bar: the dialog's own heading level, held
+                        apart from its body. */}
+                    <div className={`mb-5 flex items-center justify-between gap-4 border-b pb-4 ${
+                      isDark ? "border-white/15" : "border-slate-200"
+                    }`}>
+                      <h3 className="text-xl font-black tracking-tight">{t(`card.${activeCard.type}`)}</h3>
+                      <button onClick={() => setActiveCard(null)} className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${cls.btn}`}>{t("close")}</button>
                     </div>
 
                     {activeCard.type === "support" ? (

@@ -4,27 +4,27 @@ import PropTypes from 'prop-types';
 // ── Color palette (matches the original tool's CSS variables) ─────────────
 const C = {
   bg:        '#0d0d0d',
-  card:      '#141414',
-  panel:     '#1a1a1a',
-  input:     '#1f1f1f',
-  border:    '#262626',
+  card:      '#12151c',
+  panel:     '#171c25',
+  input:     '#232a38',
+  border:    '#3d4757',
   borderHi:  '#333333',
   accent:    '#4da6ff',
   accentH:   '#3a8fe0',
   accentGlow:'rgba(77,166,255,0.15)',
   text:      '#f2f2f2',
-  textSub:   '#999999',
-  textMuted: '#555555',
+  textSub:   '#c3cddd',
+  textMuted: '#99a5ba',
   green:     '#22c55e',
   red:       '#ef4444',
 };
 
 // ── Reusable style objects ────────────────────────────────────────────────
-const inputStyle = { background: C.input, border: `1px solid ${C.border}`, borderRadius: 7, color: C.text };
-const sectionStyle = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 12 };
+const inputStyle = { borderRadius: 8 };
+const sectionStyle = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, boxShadow: '0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' };
 const sectionTitleStyle = {
-  fontSize: 11, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase',
-  letterSpacing: '.05em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6,
+  fontSize: 12.5, fontWeight: 800, color: C.text, textTransform: 'uppercase',
+  letterSpacing: '.08em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 7,
 };
 const SectionBar = () => (
   <span style={{ display: 'inline-block', width: 3, height: 12, background: C.accent, borderRadius: 2 }} />
@@ -42,16 +42,16 @@ function Loader() {
 function InputField({ label, children, hint }) {
   return (
     <div>
-      <label style={{ color: C.textMuted, fontSize: 11, display: 'block', marginBottom: 4 }}>{label}</label>
+      <label style={{ color: C.textSub, fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 5 }}>{label}</label>
       {children}
-      {hint && <p style={{ fontSize: 10, color: '#4a4a4a', marginTop: 3 }}>{hint}</p>}
+      {hint && <p style={{ fontSize: 11.5, color: C.textMuted, marginTop: 4, lineHeight: 1.5 }}>{hint}</p>}
     </div>
   );
 }
 InputField.propTypes = { label: PropTypes.string, children: PropTypes.node, hint: PropTypes.string };
 
 const inputCls = {
-  width: '100%', padding: '8px 12px', fontSize: 12, outline: 'none', transition: 'border-color .2s',
+  width: '100%', padding: '9px 12px', fontSize: 13, boxSizing: 'border-box',
   ...inputStyle,
 };
 
@@ -243,7 +243,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 7, padding: '6px 12px', color: C.textSub, fontSize: 11, cursor: 'pointer' }}
+              style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 7, padding: '6px 12px', color: C.textSub, fontSize: 12.5, cursor: 'pointer' }}
             >
               → رجوع
             </button>
@@ -251,7 +251,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
               <img src="/meta_ads_one_way.png" alt="Meta Ads One Way" style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 10 }} />
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.accent, letterSpacing: '.3px' }}>META ADS ONE WAY</div>
-                <div style={{ fontSize: 10, color: C.textSub }}>أداة إنشاء إعلانات فيسبوك</div>
+                <div style={{ fontSize: 11.5, color: C.textSub }}>أداة إنشاء إعلانات فيسبوك</div>
               </div>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
                 style={{
                   width: 28, height: 28, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700,
+                  fontSize: 12.5, fontWeight: 700,
                   background: step === s ? C.accent : C.input,
                   color: step === s ? '#fff' : C.textMuted,
                   border: `1px solid ${step === s ? C.accent : C.border}`,
@@ -368,7 +368,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
             {token && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 7, padding: '7px 12px', background: C.accentGlow, border: `1px solid rgba(77,166,255,0.25)` }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.accent, animation: 'pulse 2s infinite', flexShrink: 0 }} />
-                <span style={{ fontFamily: 'monospace', fontSize: 11, color: C.accent }}>{adAccount || 'حساب محفوظ'}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 12.5, color: C.accent }}>{adAccount || 'حساب محفوظ'}</span>
               </div>
             )}
 
@@ -394,7 +394,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* Token active badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 7, padding: '6px 12px', background: C.accentGlow, border: `1px solid rgba(77,166,255,0.25)`, fontSize: 11 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, borderRadius: 7, padding: '6px 12px', background: C.accentGlow, border: `1px solid rgba(77,166,255,0.25)`, fontSize: 12.5 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.accent, animation: 'pulse 2s infinite', flexShrink: 0 }} />
               <span style={{ fontFamily: 'monospace', color: C.accent }}>{adAccount}</span>
               <span style={{ color: C.textMuted, marginRight: 'auto' }}>● التوكن نشط</span>
@@ -436,7 +436,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
                         disabled={fetchingPosts}
                         style={{
                           padding: '8px 12px', borderRadius: 7, border: `1px solid ${C.border}`,
-                          background: C.panel, color: C.textSub, fontSize: 11, fontWeight: 600,
+                          background: C.panel, color: C.textSub, fontSize: 12.5, fontWeight: 600,
                           cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
                           display: 'flex', alignItems: 'center', gap: 5,
                         }}
@@ -446,7 +446,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
                     </div>
                     {fetchStatus && (
                       <p style={{
-                        fontSize: 11, marginTop: 3,
+                        fontSize: 12.5, marginTop: 3,
                         color: fetchStatus.startsWith('✅') ? C.green : fetchStatus.startsWith('❌') ? C.red : C.textSub,
                       }}>{fetchStatus}</p>
                     )}
@@ -478,7 +478,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
                       <span style={{ fontSize: 16 }}>⏰</span>
                       <div>
                         <div style={{ fontWeight: 700 }}>جدولة تلقائية — 30 دقيقة</div>
-                        <div style={{ fontSize: 10, opacity: .8, marginTop: 1 }}>سيبدأ الإعلان تلقائياً بعد 30 دقيقة من الآن</div>
+                        <div style={{ fontSize: 11.5, opacity: .8, marginTop: 1 }}>سيبدأ الإعلان تلقائياً بعد 30 دقيقة من الآن</div>
                       </div>
                     </div>
                   )}
@@ -503,7 +503,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
                       {imagePreview ? (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                           <img src={imagePreview} alt="preview" style={{ maxHeight: 90, maxWidth: 220, borderRadius: 6, objectFit: 'cover' }} />
-                          <span style={{ fontSize: 11 }}>✅ {imageFile.name}</span>
+                          <span style={{ fontSize: 12.5 }}>✅ {imageFile.name}</span>
                         </div>
                       ) : (
                         <>
@@ -601,12 +601,12 @@ export default function MetaAdsOneWayModal({ onClose }) {
                 {adResult.ok ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <div style={{ color: C.green, fontWeight: 700 }}>✅ {adResult.message || 'تم إنشاء الإعلان بنجاح'}</div>
-                    {adResult.ad_id      && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 11 }}>Ad ID: {adResult.ad_id}</div>}
-                    {adResult.adset_id   && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 11 }}>AdSet: {adResult.adset_id}</div>}
-                    {adResult.campaign_id && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 11 }}>Campaign: {adResult.campaign_id}</div>}
-                    {adResult.currency   && <div style={{ color: C.textSub, fontSize: 11 }}>العملة: {adResult.currency}</div>}
+                    {adResult.ad_id      && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 12.5 }}>Ad ID: {adResult.ad_id}</div>}
+                    {adResult.adset_id   && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 12.5 }}>AdSet: {adResult.adset_id}</div>}
+                    {adResult.campaign_id && <div style={{ color: C.textSub, fontFamily: 'monospace', fontSize: 12.5 }}>Campaign: {adResult.campaign_id}</div>}
+                    {adResult.currency   && <div style={{ color: C.textSub, fontSize: 12.5 }}>العملة: {adResult.currency}</div>}
                     {adResult.response_preview && (
-                      <div style={{ marginTop: 4, padding: '4px 8px', background: 'rgba(0,0,0,0.3)', borderRadius: 5, fontFamily: 'monospace', fontSize: 10, color: '#666', wordBreak: 'break-all' }}>
+                      <div style={{ marginTop: 4, padding: '4px 8px', background: 'rgba(0,0,0,0.3)', borderRadius: 5, fontFamily: 'monospace', fontSize: 11.5, color: '#666', wordBreak: 'break-all' }}>
                         {adResult.response_preview.slice(0, 200)}
                       </div>
                     )}

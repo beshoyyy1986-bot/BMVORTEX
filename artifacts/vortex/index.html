@@ -5,7 +5,22 @@
     <link rel="icon" type="image/png" href="/logo_vortex.png" />
     <link rel="apple-touch-icon" href="/logo_vortex.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
     <title>Vortex — Control Panel</title>
+
+    <!--
+      The UI asks for Tajawal (Arabic + Latin body text) and Share Tech Mono
+      (data/log output) in ~60 places, but neither was ever loaded — every
+      one of those rules silently fell back to the browser default, which on
+      Windows means Courier New at 9–11px. Loading them is a prerequisite
+      for the type scale in index.css to render as intended.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Share+Tech+Mono&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

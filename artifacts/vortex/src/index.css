@@ -1,5 +1,105 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════
+   VORTEX — UI FOUNDATION
+   ─────────────────────────────────────────────────────────────────────
+   The app's ~25 screens were each styled ad-hoc with inline Tailwind, and
+   drifted into the same four problems everywhere: surfaces sat at the same
+   luminance as the page, borders were rgba(255,255,255,0.10) (invisible),
+   muted text was slate-400/500/600 at 9–11px, and nothing cast a shadow —
+   so cards, inputs and background all read as one flat plane.
+
+   Rather than rewrite ten thousand lines of markup, the fix is a token
+   layer. Everything below is UNLAYERED CSS, which in the cascade beats
+   Tailwind's `@layer utilities` regardless of specificity. That lets us
+   redefine what the weak utilities actually resolve to, in one place,
+   without touching a single className.
+
+   Tokens are custom properties, so they inherit: `.vx-light` on any
+   subtree flips the whole scale for the dashboard's light theme, while the
+   tool pages (which are dark-only by design) keep the dark values.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Surfaces: four genuinely distinguishable elevation steps ────── */
+  --vx-bg:            #0a0c10;   /* page                       */
+  --vx-surface-1:     #12151c;   /* panel on page              */
+  --vx-surface-2:     #191e27;   /* card on panel              */
+  --vx-surface-3:     #212734;   /* nested block on card       */
+
+  /* ── Fields read as a step ABOVE their container, never below ───── */
+  --vx-field-bg:      #232a38;
+  --vx-field-bg-hi:   #29313f;
+  --vx-field-edge:    rgba(163,181,211,0.42);
+  --vx-field-edge-h:  rgba(163,181,211,0.66);
+
+  /* ── Edges ───────────────────────────────────────────────────────── */
+  --vx-edge:          rgba(160,175,200,0.20);
+  --vx-edge-2:        rgba(160,175,200,0.32);
+
+  /* ── Text: four steps, all >= 4.5:1 on their intended surface ───── */
+  --vx-fg:            #eef2f8;
+  --vx-fg-muted:      #bcc7d9;
+  --vx-fg-subtle:     #99a5ba;
+  --vx-placeholder:   #7d8899;
+
+  /* ── Accent / focus ─────────────────────────────────────────────── */
+  --vx-accent:        #5c9bff;
+  --vx-accent-ring:   rgba(92,155,255,0.30);
+
+  /* ── Elevation ──────────────────────────────────────────────────── */
+  --vx-elev-1:
+    0 1px 2px rgba(0,0,0,0.45),
+    0 6px 18px -8px rgba(0,0,0,0.70),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  --vx-elev-2:
+    0 2px 6px rgba(0,0,0,0.50),
+    0 18px 44px -18px rgba(0,0,0,0.85),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  --vx-elev-field: inset 0 1px 2px rgba(0,0,0,0.38);
+
+  --vx-select-arrow: rgba(200,212,232,0.85);
+
+  /* ── Type ───────────────────────────────────────────────────────── */
+  --vx-font-ui: "Tajawal", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --vx-font-mono: "Share Tech Mono", "JetBrains Mono", "Cascadia Mono", "Consolas", ui-monospace, monospace;
+}
+
+/* Light scope — applied by the dashboard when theme === "light". Tool
+   pages never receive it, so they stay dark as designed. */
+.vx-light {
+  --vx-bg:            #eef1f6;
+  --vx-surface-1:     #ffffff;
+  --vx-surface-2:     #f7f9fc;
+  --vx-surface-3:     #eef2f8;
+
+  --vx-field-bg:      #ffffff;
+  --vx-field-bg-hi:   #ffffff;
+  --vx-field-edge:    rgba(15,23,42,0.26);
+  --vx-field-edge-h:  rgba(15,23,42,0.42);
+
+  --vx-edge:          rgba(15,23,42,0.13);
+  --vx-edge-2:        rgba(15,23,42,0.20);
+
+  --vx-fg:            #0f172a;
+  --vx-fg-muted:      #47566d;
+  --vx-fg-subtle:     #5c6b82;
+  --vx-placeholder:   #94a3b8;
+
+  --vx-accent:        #2563eb;
+  --vx-accent-ring:   rgba(37,99,235,0.22);
+
+  --vx-elev-1:
+    0 1px 2px rgba(15,23,42,0.06),
+    0 6px 16px -8px rgba(15,23,42,0.18);
+  --vx-elev-2:
+    0 2px 8px rgba(15,23,42,0.08),
+    0 20px 40px -20px rgba(15,23,42,0.28);
+  --vx-elev-field: inset 0 1px 2px rgba(15,23,42,0.05);
+
+  --vx-select-arrow: rgba(51,65,85,0.85);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -13,6 +113,305 @@ body,
   overflow-x: hidden;
 }
 
+body {
+  font-family: var(--vx-font-ui);
+  background-color: var(--vx-bg);
+  color: var(--vx-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   1. TYPE SCALE FLOOR
+   The UI leaned on 9/10/11px text for labels, hints, badges and table
+   cells. Each step is raised while the ORDER between them is preserved,
+   so hierarchy survives but nothing sits below a comfortable reading
+   size any more.
+   ───────────────────────────────────────────────────────────────────── */
+.text-\[9px\]  { font-size: 11px;   line-height: 1.45; }
+.text-\[10px\] { font-size: 11.5px; line-height: 1.45; }
+.text-\[11px\] { font-size: 12.5px; line-height: 1.5; }
+.text-xs       { font-size: 13px;   line-height: 1.5; }
+.text-sm       { font-size: 14.5px; line-height: 1.6; }
+.text-base     { font-size: 16px;   line-height: 1.6; }
+
+/* Tracking on tiny uppercase eyebrow text is what makes it legible. */
+.tracking-widest  { letter-spacing: 0.13em; }
+.tracking-\[0\.2em\]  { letter-spacing: 0.2em; }
+.tracking-\[0\.28em\] { letter-spacing: 0.26em; }
+.tracking-\[0\.3em\]  { letter-spacing: 0.26em; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   2. TEXT CONTRAST
+   slate-400/500/600 were used interchangeably for "not the main text",
+   which is why labels vanished. They now resolve to two deliberate,
+   theme-aware steps.
+   ───────────────────────────────────────────────────────────────────── */
+.text-slate-300 { color: var(--vx-fg); }
+.text-slate-400 { color: var(--vx-fg-muted); }
+.text-slate-500 { color: var(--vx-fg-muted); }
+.text-slate-600 { color: var(--vx-fg-subtle); }
+.text-zinc-400  { color: var(--vx-fg-muted); }
+.text-zinc-500  { color: var(--vx-fg-muted); }
+
+/* Semantic text kept its hue but was too dark to read on dark panels. */
+.text-blue-100, .text-blue-200   { color: #cfe0ff; }
+.text-amber-200                  { color: #ffe4ad; }
+.text-emerald-400, .text-green-300 { color: #6ee7a8; }
+.text-red-300, .text-red-400     { color: #ff9c9c; }
+
+/* Labels are the single most-missed element in the app. Give every one of
+   them weight and air, but leave colour to the utilities above so the
+   accent-coloured section labels keep their hue. */
+label {
+  font-weight: 600;
+  letter-spacing: 0.012em;
+}
+
+/* Headings only get upgraded when the markup did NOT already opt into a
+   size/weight utility — this adds hierarchy without flattening the
+   deliberate `font-black` / `text-xl` headings that already exist. */
+h1, h2, h3, h4, h5 {
+  line-height: 1.25;
+  letter-spacing: -0.012em;
+}
+h1:not([class*="font-"]),
+h2:not([class*="font-"]),
+h3:not([class*="font-"]),
+h4:not([class*="font-"]) { font-weight: 800; }
+
+h1:not([class*="text-"]) { font-size: 1.6rem; }
+h2:not([class*="text-"]) { font-size: 1.3rem; }
+h3:not([class*="text-"]) { font-size: 1.06rem; }
+h4:not([class*="text-"]) { font-size: 0.95rem; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   3. EDGES AND SURFACES
+   Borders at 5–10% white are invisible against these backgrounds; each
+   tier is lifted to where it actually delineates something.
+   ───────────────────────────────────────────────────────────────────── */
+.border-white\/5,
+.border-white\/8,
+.border-white\/10,
+.border-white\/\[0\.08\] { border-color: var(--vx-edge); }
+
+.border-white\/15,
+.border-white\/20        { border-color: var(--vx-edge-2); }
+
+.border-blue-400\/15,
+.border-blue-400\/20,
+.border-blue-400\/25,
+.border-blue-400\/30     { border-color: rgba(96,150,255,0.42); }
+
+.border-amber-500\/20,
+.border-amber-500\/25    { border-color: rgba(245,158,11,0.45); }
+
+.border-slate-600\/30,
+.border-slate-600\/35,
+.border-slate-500\/25,
+.border-slate-500\/30    { border-color: var(--vx-edge-2); }
+
+.border-slate-200        { border-color: rgba(15,23,42,0.14); }
+.border-slate-300        { border-color: rgba(15,23,42,0.22); }
+
+/* Translucent fills stay translucent — they sit over gradients — but at
+   an opacity that actually separates them from what's behind. */
+.bg-white\/3,
+.bg-white\/\[0\.03\]     { background-color: rgba(255,255,255,0.055); }
+.bg-white\/5,
+.bg-white\/\[0\.05\],
+.bg-white\/\[0\.06\]     { background-color: rgba(255,255,255,0.085); }
+.bg-white\/10            { background-color: rgba(255,255,255,0.13); }
+
+.bg-black\/20            { background-color: rgba(0,0,0,0.34); }
+.bg-black\/25            { background-color: rgba(0,0,0,0.40); }
+.bg-black\/30            { background-color: rgba(0,0,0,0.45); }
+
+/* Hairline dividers */
+.bg-white\/\[0\.08\]     { background-color: var(--vx-edge); }
+
+/* ─────────────────────────────────────────────────────────────────────
+   4. ELEVATION
+   A bordered, padded box is a panel — give it a shadow so the layer
+   stack is readable. Scoped to block containers so buttons, badges and
+   inputs are untouched (they get their own treatment below).
+   ───────────────────────────────────────────────────────────────────── */
+:is(div, form, section, aside, li)[class*="rounded-"][class*="border"]:is(
+  [class~="p-2"],   [class~="p-2.5"], [class~="p-3"], [class~="p-3.5"],
+  [class~="p-4"],   [class~="p-5"],   [class~="p-6"], [class~="p-8"],
+  [class~="p-\[14px\]"]
+) {
+  box-shadow: var(--vx-elev-1);
+}
+
+/* Anything explicitly asking to float gets the deeper stack. */
+.shadow-2xl,
+.shadow-xl { box-shadow: var(--vx-elev-2); }
+
+/* ─────────────────────────────────────────────────────────────────────
+   5. FORM FIELDS  ← the "where is the input?" fix
+   Every field now sits a step LIGHTER than its container, carries a
+   1.5px border with real contrast, an inner shadow that reads as a
+   recess, and an unmistakable focus ring.
+   ───────────────────────────────────────────────────────────────────── */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="submit"]):not(.hidden):not(.sr-only),
+textarea,
+select {
+  background-color: var(--vx-field-bg);
+  border: 1.5px solid var(--vx-field-edge);
+  color: var(--vx-fg);
+  box-shadow: var(--vx-elev-field);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.hidden):hover,
+textarea:hover,
+select:hover {
+  border-color: var(--vx-field-edge-h);
+  background-color: var(--vx-field-bg-hi);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not(.hidden):focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--vx-accent);
+  background-color: var(--vx-field-bg-hi);
+  box-shadow: 0 0 0 3px var(--vx-accent-ring), var(--vx-elev-field);
+}
+
+input:disabled, textarea:disabled, select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+::placeholder {
+  color: var(--vx-placeholder);
+  opacity: 1;
+}
+
+/* Native select arrows are invisible on dark fills, and the popup list
+   inherits the OS light theme. Both fixed here. */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(var(--vx-select-arrow), var(--vx-select-arrow)),
+                    linear-gradient(var(--vx-select-arrow), var(--vx-select-arrow));
+  background-size: 8px 1.6px, 8px 1.6px;
+  background-repeat: no-repeat;
+  background-position: right 1rem center, right 0.56rem center;
+  padding-inline-end: 2.1rem;
+}
+select option {
+  background-color: #1b202a;
+  color: #eef2f8;
+}
+.vx-light select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+/* Mirror the arrow for Arabic. */
+[dir="rtl"] select {
+  background-position: left 0.56rem center, left 1rem center;
+  padding-inline-end: 0.9rem;
+  padding-inline-start: 2.1rem;
+}
+
+/* Checkboxes and radios were 100% browser-default and disappeared on dark
+   panels. Just sizing them up and tinting them is enough. */
+input[type="checkbox"]:not(.sr-only):not(.opacity-0),
+input[type="radio"]:not(.sr-only):not(.opacity-0) {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--vx-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   6. BUTTONS — hierarchy and depth
+   Primary actions get a lit top edge and a cast shadow so they sit
+   clearly above the surface; secondary (bordered) buttons get a real
+   border. Card-grid buttons are excluded: they carry their own artwork
+   and their own hover transform.
+   ───────────────────────────────────────────────────────────────────── */
+button {
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+              box-shadow 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+button:is(
+  [class~="bg-blue-500"],  [class~="bg-blue-600"],
+  [class~="bg-amber-500"], [class~="bg-amber-400"],
+  [class~="bg-green-500"], [class~="bg-green-600"],
+  [class~="bg-emerald-500"],
+  [class~="bg-red-500"],   [class~="bg-red-600"]
+),
+a:is([class~="bg-blue-500"], [class~="bg-red-600"]) {
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    0 1px 2px rgba(0,0,0,0.35),
+    0 8px 18px -8px rgba(0,0,0,0.75);
+}
+
+button:is(
+  [class~="bg-blue-500"],  [class~="bg-blue-600"],
+  [class~="bg-amber-500"], [class~="bg-green-500"],
+  [class~="bg-emerald-500"], [class~="bg-red-500"]
+):hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    0 2px 4px rgba(0,0,0,0.35),
+    0 12px 24px -8px rgba(0,0,0,0.8);
+}
+
+button:is(
+  [class~="bg-blue-500"],  [class~="bg-blue-600"],
+  [class~="bg-amber-500"], [class~="bg-green-500"],
+  [class~="bg-emerald-500"], [class~="bg-red-500"]
+):active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Bordered / ghost buttons: give the edge enough contrast to read as an
+   affordance rather than as decoration. */
+button[class*="border"]:not([class*="bg-blue"]):not([class*="bg-amber"]):not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-emerald"]) {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Keyboard focus was invisible app-wide. */
+:where(button, a, [role="button"], [tabindex]):focus-visible {
+  outline: 2px solid var(--vx-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   7. AMBIENT COMFORT
+   Long tool panels scroll a lot; the default scrollbar is a bright
+   light-mode strip on every dark page.
+   ───────────────────────────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148,163,184,0.35) transparent;
+}
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(148,163,184,0.32);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: rgba(148,163,184,0.52); }
+
+/* Monospace data / log output stays mono, but at a size that can be read
+   without leaning in. */
+.font-mono { font-family: var(--vx-font-mono); letter-spacing: 0.01em; }
+
 /* ── Footer mascot: gentle idle float ── */
 @keyframes vortex-mascot-bob {
   0%, 100% { transform: translateY(0); }
@@ -23,4 +422,5 @@ body,
 }
 @media (prefers-reduced-motion: reduce) {
   .vortex-mascot-float { animation: none; }
+  * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }

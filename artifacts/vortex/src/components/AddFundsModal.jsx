@@ -2,17 +2,17 @@ import { useState } from 'react';
 import PropTypes from 'prop-types';
 
 const C = {
-  bg:'#09090b', card:'#111113', panel:'#18181b', input:'#1c1c1f',
-  border:'#27272a', gold:'#f59e0b', goldH:'#d97706', goldGlow:'rgba(245,158,11,0.22)',
+  bg:'#0a0c10', card:'#12151c', panel:'#171c25', input:'#232a38',
+  border:'#3d4757', gold:'#f59e0b', goldH:'#d97706', goldGlow:'rgba(245,158,11,0.22)',
   orange:'#ff6b1a', cyan:'#22d3ee', green:'#22c55e', red:'#ef4444', warn:'#f59e0b',
-  text:'#f4f4f5', textSub:'#a1a1aa', textMuted:'#52525b',
+  text:'#eef2f8', textSub:'#c3cddd', textMuted:'#99a5ba',
 };
-const inputCls = { width:'100%', padding:'7px 10px', fontSize:11, outline:'none', background:C.input, border:`1px solid ${C.border}`, borderRadius:7, color:C.text, fontFamily:"'Share Tech Mono',monospace", boxSizing:'border-box' };
-const labelCls = { fontSize:9, color:C.textMuted, display:'block', marginBottom:3, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.08em' };
+const inputCls = { width:'100%', padding:'9px 12px', fontSize:12.5, borderRadius:8, fontFamily:"'Share Tech Mono',monospace", boxSizing:'border-box' };
+const labelCls = { fontSize:12.5, fontWeight:700, color:C.textSub, display:'block', marginBottom:5, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.06em' };
 
 function StatusTag({ type='info', children }) {
   const clr = type==='success'?C.green:type==='error'?C.red:type==='warn'?C.warn:C.cyan;
-  return <div style={{ padding:'8px 10px', borderRadius:7, border:`1px solid ${clr}33`, background:`${clr}11`, fontSize:11, color:clr, fontFamily:"'Share Tech Mono',monospace", lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-all' }}>{children}</div>;
+  return <div style={{ padding:'8px 10px', borderRadius:7, border:`1px solid ${clr}33`, background:`${clr}11`, fontSize:12.5, color:clr, fontFamily:"'Share Tech Mono',monospace", lineHeight:1.7, whiteSpace:'pre-wrap', wordBreak:'break-all' }}>{children}</div>;
 }
 StatusTag.propTypes = { type:PropTypes.string, children:PropTypes.node };
 
@@ -25,12 +25,12 @@ const STEPS = [
 
 function StepBar({ steps, current, states }) {
   return (
-    <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4 }}>
+    <div style={{ background:'#06080b', border:`1px solid ${C.border}`, borderRadius:9, padding:'8px 10px', display:'flex', flexDirection:'column', gap:4 }}>
       {steps.map((s, i) => {
         const state = states[i] || 'pending';
         const clr = state==='done'?C.green:state==='error'?C.red:state==='active'?C.cyan:C.textMuted;
         return (
-          <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'3px 0', fontFamily:"'Share Tech Mono',monospace", fontSize:10 }}>
+          <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'3px 0', fontFamily:"'Share Tech Mono',monospace", fontSize:11.5 }}>
             <span style={{ width:8, height:8, borderRadius:'50%', background:clr, flexShrink:0, boxShadow: state==='active'?`0 0 8px ${C.cyan}`:state==='done'?`0 0 6px ${C.green}`:state==='error'?`0 0 6px ${C.red}`:'none', transition:'.3s', display:'inline-block' }} />
             <span style={{ color: clr }}>{s}</span>
           </div>
@@ -104,11 +104,11 @@ export default function AddFundsModal({ onClose }) {
       {/* Header */}
       <header style={{ background:'linear-gradient(135deg,#0d0d0f,#161618)', borderBottom:`1px solid ${C.border}`, padding:'12px 20px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:`1px solid ${C.border}`, borderRadius:8, padding:'5px 12px', color:C.textSub, fontSize:11, cursor:'pointer' }}>→ رجوع</button>
+          <button onClick={onClose} style={{ background:'rgba(255,255,255,0.05)', border:`1px solid ${C.border}`, borderRadius:8, padding:'5px 12px', color:C.textSub, fontSize:12.5, cursor:'pointer' }}>→ رجوع</button>
           <img src="/add_funds_meta.png" alt="Add Funds" style={{ width:70, height:46, objectFit:'contain', filter:'drop-shadow(0 0 10px rgba(245,158,11,0.5))' }} />
           <div>
             <div style={{ fontSize:15, fontWeight:800, letterSpacing:'.3px', background:'linear-gradient(90deg,#f59e0b,#fcd34d)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>ADD FUNDS METAGRAPH</div>
-            <div style={{ fontSize:10, color:C.textMuted }}>إضافة رصيد لحساب الإعلانات عبر GraphQL</div>
+            <div style={{ fontSize:11.5, color:C.textMuted }}>إضافة رصيد لحساب الإعلانات عبر GraphQL</div>
           </div>
         </div>
       </header>
@@ -116,19 +116,19 @@ export default function AddFundsModal({ onClose }) {
       {/* Body */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
         {/* Cookies */}
-        <div style={{ background:C.panel, border:`1px solid rgba(245,158,11,0.3)`, borderRadius:10, padding:12 }}>
-          <div style={{ fontSize:9, fontWeight:700, color:C.gold, letterSpacing:'.08em', marginBottom:6, fontFamily:"'Share Tech Mono',monospace" }}>◈ COOKIES</div>
+        <div style={{ background:C.panel, border:`1px solid rgba(245,158,11,0.45)`, borderRadius:12, padding:14, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+          <div style={{ fontSize:11, fontWeight:700, color:C.gold, letterSpacing:'.08em', marginBottom:6, fontFamily:"'Share Tech Mono',monospace" }}>◈ COOKIES</div>
           <textarea value={cookies} onChange={e=>setCookies(e.target.value)} placeholder="c_user=...; xs=...; datr=..." rows={3}
             style={{ ...inputCls, resize:'vertical', lineHeight:1.5 }} />
         </div>
 
         {/* Payment Account ID */}
-        <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:10, padding:12, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:10, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
           <div>
             <label style={labelCls}>◈ PAYMENT ACCOUNT ID</label>
             <div style={{ display:'flex', gap:8 }}>
               <input value={accountId} onChange={e=>setAccountId(e.target.value)} placeholder="يُكتشف تلقائياً" style={{ ...inputCls, flex:1 }} />
-              <button onClick={fetchCards} disabled={loading} style={{ padding:'7px 14px', background:`linear-gradient(135deg,${C.gold},${C.goldH})`, border:'none', borderRadius:7, color:'#111', fontWeight:800, fontSize:11, cursor:'pointer', flexShrink:0 }}>
+              <button onClick={fetchCards} disabled={loading} style={{ padding:'7px 14px', background:`linear-gradient(135deg,${C.gold},${C.goldH})`, border:'none', borderRadius:7, color:'#111', fontWeight:800, fontSize:12.5, cursor:'pointer', flexShrink:0 }}>
                 {loading ? '⟳' : '🔍 FETCH'}
               </button>
             </div>
@@ -147,7 +147,7 @@ export default function AddFundsModal({ onClose }) {
             <label style={labelCls}>◈ المبلغ (USD)</label>
             <div style={{ display:'flex', gap:8, alignItems:'center' }}>
               <input type="number" min={1} step={1} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="مثال: 50" style={{ ...inputCls, flex:1 }} />
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:C.textMuted, flexShrink:0 }}>USD</span>
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11.5, color:C.textMuted, flexShrink:0 }}>USD</span>
             </div>
           </div>
         </div>
@@ -164,9 +164,9 @@ export default function AddFundsModal({ onClose }) {
         </button>
 
         {/* Terminal */}
-        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, overflow:'hidden' }}>
-          <div style={{ padding:'4px 8px', borderBottom:`1px solid ${C.border}`, fontFamily:"'Share Tech Mono',monospace", fontSize:8, color:C.textMuted }}>◈ TERMINAL</div>
-          <pre style={{ padding:'7px 9px', maxHeight:130, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.6, color:'#86ffb3', margin:0, background:'transparent', whiteSpace:'pre-wrap' }}>{log}</pre>
+        <div style={{ background:'#06080b', border:`1px solid ${C.border}`, borderRadius:9, overflow:'hidden' }}>
+          <div style={{ padding:'4px 8px', borderBottom:`1px solid ${C.border}`, fontFamily:"'Share Tech Mono',monospace", fontSize:10.5, color:C.textMuted }}>◈ TERMINAL</div>
+          <pre style={{ padding:'7px 9px', maxHeight:130, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.6, color:'#86ffb3', margin:0, background:'transparent', whiteSpace:'pre-wrap' }}>{log}</pre>
         </div>
       </div>
     </div>

@@ -3,33 +3,31 @@ import PropTypes from 'prop-types';
 
 // ── Color palette ─────────────────────────────────────────────────────────
 const C = {
-  bg:       '#09090b',
-  card:     '#111113',
-  panel:    '#18181b',
-  input:    '#1c1c1f',
-  border:   '#27272a',
-  borderHi: '#3f3f46',
+  bg:       '#0a0c10',
+  card:     '#12151c',
+  panel:    '#171c25',
+  input:    '#232a38',
+  border:   '#3d4757',
+  borderHi: '#525f73',
   gold:     '#f59e0b',
   goldH:    '#d97706',
   goldGlow: 'rgba(245,158,11,0.18)',
   silver:   '#94a3b8',
-  text:     '#f4f4f5',
-  textSub:  '#a1a1aa',
-  textMuted:'#52525b',
+  text:     '#eef2f8',
+  textSub:  '#c3cddd',
+  textMuted:'#99a5ba',
   green:    '#22c55e',
   red:      '#ef4444',
   cyan:     '#22d3ee',
 };
 
 const inputCls = {
-  width:'100%', padding:'8px 12px', fontSize:12, outline:'none',
-  background: C.input, border:`1px solid ${C.border}`, borderRadius:7,
-  color: C.text, transition:'border-color .2s',
+  width:'100%', padding:'9px 12px', fontSize:13, borderRadius:8, boxSizing:'border-box',
 };
-const panelCls = { background: C.panel, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px' };
-const labelCls = { fontSize:10, color: C.textMuted, display:'block', marginBottom:4, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.08em' };
+const panelCls = { background: C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px', boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' };
+const labelCls = { fontSize:12.5, fontWeight:700, color: C.textSub, display:'block', marginBottom:5, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.06em' };
 const SectionBar = () => <span style={{ display:'inline-block', width:3, height:12, background:C.gold, borderRadius:2 }} />;
-const sectionTitleCls = { fontSize:11, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:10, display:'flex', alignItems:'center', gap:6 };
+const sectionTitleCls = { fontSize:12.5, fontWeight:800, color:C.text, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:12, display:'flex', alignItems:'center', gap:7 };
 
 function Spin() {
   return <span style={{ display:'inline-block', width:12, height:12, borderRadius:'50%', border:'2px solid currentColor', borderTopColor:'transparent', animation:'bmSpin .7s linear infinite' }} />;
@@ -50,9 +48,9 @@ function LogBox({ lines }) {
   return (
     <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, overflow:'hidden' }}>
       <div style={{ padding:'4px 8px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:9, color:C.textMuted, letterSpacing:'1px' }}>◈ LOG</span>
+        <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11, color:C.textMuted, letterSpacing:'1px' }}>◈ LOG</span>
       </div>
-      <div ref={el} style={{ padding:'6px 8px', maxHeight:140, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.7 }}>
+      <div ref={el} style={{ padding:'6px 8px', maxHeight:140, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
         {lines.slice(-60).reverse().map((l,i) => (
           <div key={i} style={{ color: l.type==='success'?C.green : l.type==='error'?C.red : l.type==='warn'?C.gold : C.cyan, borderBottom:`1px solid rgba(255,255,255,.03)`, padding:'1px 0' }}>
             [{l.time}] {l.msg}
@@ -181,15 +179,15 @@ export default function CcFromBmModal({ onClose }) {
       <header style={{ background:`linear-gradient(135deg, #131313 0%, #1a1a1a 50%, #141414 100%)`, borderBottom:`1px solid ${C.border}`, padding:'14px 20px', flexShrink:0, boxShadow:`0 1px 20px rgba(245,158,11,0.08)` }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 12px', color:C.textSub, fontSize:11, cursor:'pointer' }}>→ رجوع</button>
+            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 12px', color:C.textSub, fontSize:12.5, cursor:'pointer' }}>→ رجوع</button>
             <img src="/meta_cards_from_bm.png" alt="CC FROM BM" style={{ width:52, height:52, objectFit:'contain', borderRadius:10, filter:'drop-shadow(0 0 8px rgba(245,158,11,0.4))' }} />
             <div>
               <div style={{ fontSize:15, fontWeight:800, letterSpacing:'.4px', background:`linear-gradient(90deg,${C.gold},#fcd34d)`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>CC FROM BM</div>
-              <div style={{ fontSize:10, color:C.textMuted }}>إضافة كارت من BM كـ Default</div>
+              <div style={{ fontSize:11.5, color:C.textMuted }}>إضافة كارت من BM كـ Default</div>
             </div>
           </div>
           {session && (
-            <div style={{ display:'flex', alignItems:'center', gap:6, borderRadius:7, padding:'5px 10px', background:`rgba(245,158,11,0.08)`, border:`1px solid rgba(245,158,11,0.2)`, fontSize:10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, borderRadius:7, padding:'5px 10px', background:`rgba(245,158,11,0.08)`, border:`1px solid rgba(245,158,11,0.2)`, fontSize:11.5 }}>
               <span style={{ width:6, height:6, borderRadius:'50%', background:C.gold, animation:'bmPulse 2s infinite', flexShrink:0 }} />
               <span style={{ color:C.gold, fontFamily:"'Share Tech Mono',monospace" }}>BM: {session.businessId}</span>
             </div>
@@ -216,11 +214,11 @@ export default function CcFromBmModal({ onClose }) {
               {/* Live parse preview */}
               {(parsedBiz || parsedAd) && (
                 <div style={{ display:'flex', gap:8, marginTop:5 }}>
-                  {parsedBiz && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:C.cyan, background:'rgba(34,211,238,0.08)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:5, padding:'2px 8px' }}>BIZ: {parsedBiz}</span>}
-                  {parsedAd  && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:C.gold, background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:5, padding:'2px 8px' }}>ACT: {parsedAd}</span>}
+                  {parsedBiz && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11.5, color:C.cyan, background:'rgba(34,211,238,0.08)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:5, padding:'2px 8px' }}>BIZ: {parsedBiz}</span>}
+                  {parsedAd  && <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11.5, color:C.gold, background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.2)', borderRadius:5, padding:'2px 8px' }}>ACT: {parsedAd}</span>}
                 </div>
               )}
-              <p style={{ fontSize:10, color:C.textMuted, marginTop:4 }}>الأداة تستخرج Business ID و Ad Account ID من الرابط تلقائياً</p>
+              <p style={{ fontSize:11.5, color:C.textMuted, marginTop:4 }}>الأداة تستخرج Business ID و Ad Account ID من الرابط تلقائياً</p>
             </div>
           </div>
         </div>
@@ -259,7 +257,7 @@ export default function CcFromBmModal({ onClose }) {
                 <label style={labelCls}>◈ فاصل زمني (ثواني)</label>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <input type="number" value={interval} onChange={e=>setInterval_(parseInt(e.target.value)||1)} min={1} max={60} style={{ ...inputCls, width:70 }} />
-                  <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:10, color:C.textMuted }}>ثواني بين كل كارت</span>
+                  <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:11.5, color:C.textMuted }}>ثواني بين كل كارت</span>
                 </div>
               </div>
             )}

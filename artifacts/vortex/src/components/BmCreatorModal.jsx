@@ -3,13 +3,13 @@ import PropTypes from 'prop-types';
 
 // ── Color palette (same as CcFromBmModal) ──────────────────────────────────
 const C = {
-  bg:        '#09090b',
-  card:      '#111113',
-  panel:     '#18181b',
+  bg:        '#0a0c10',
+  card:      '#12151c',
+  panel:     '#171c25',
   panel2:    '#141416',
-  input:     '#1c1c1f',
-  border:    '#27272a',
-  borderHi:  '#3f3f46',
+  input:     '#232a38',
+  border:    '#3d4757',
+  borderHi:  '#525f73',
   gold:      '#f59e0b',
   goldH:     '#d97706',
   goldGlow:  'rgba(245,158,11,0.18)',
@@ -22,9 +22,9 @@ const C = {
   green:     '#22c55e',
   red:       '#ef4444',
   warn:      '#f59e0b',
-  text:      '#f4f4f5',
-  textSub:   '#a1a1aa',
-  textMuted: '#52525b',
+  text:      '#eef2f8',
+  textSub:   '#c3cddd',
+  textMuted: '#99a5ba',
 };
 
 const BM_NAMES = [
@@ -58,7 +58,7 @@ ProgressBar.propTypes = { value: PropTypes.number };
 function StatusTag({ type = 'info', children }) {
   const clr = type === 'success' ? C.green : type === 'error' ? C.red : type === 'warn' ? C.warn : C.cyan;
   return (
-    <div style={{ padding:'6px 10px', borderRadius:7, border:`1px solid ${clr}33`, background:`${clr}11`, fontSize:11, color:clr, fontFamily:"'Share Tech Mono',monospace", lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-all' }}>
+    <div style={{ padding:'6px 10px', borderRadius:7, border:`1px solid ${clr}33`, background:`${clr}11`, fontSize:12.5, color:clr, fontFamily:"'Share Tech Mono',monospace", lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-all' }}>
       {children}
     </div>
   );
@@ -67,11 +67,11 @@ StatusTag.propTypes = { type: PropTypes.string, children: PropTypes.node };
 
 function SectionBar() { return <span style={{ display:'inline-block', width:3, height:11, background:C.gold, borderRadius:2 }} />; }
 
-const sectionTitle = { fontSize:10, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:8, display:'flex', alignItems:'center', gap:5 };
-const inputCls = { width:'100%', padding:'7px 10px', fontSize:11, outline:'none', background:C.input, border:`1px solid ${C.border}`, borderRadius:7, color:C.text, fontFamily:"'Share Tech Mono',monospace", boxSizing:'border-box' };
+const sectionTitle = { fontSize:12.5, fontWeight:800, color:C.text, textTransform:'uppercase', letterSpacing:'.08em', marginBottom:10, display:'flex', alignItems:'center', gap:7 };
+const inputCls = { width:'100%', padding:'9px 12px', fontSize:12.5, borderRadius:8, fontFamily:"'Share Tech Mono',monospace", boxSizing:'border-box' };
 const selectCls = { ...inputCls };
-const labelCls = { fontSize:9, color:C.textMuted, display:'block', marginBottom:3, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.08em' };
-const panelCls = { background:C.panel, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px', display:'flex', flexDirection:'column', gap:8 };
+const labelCls = { fontSize:12.5, fontWeight:700, color:C.textSub, display:'block', marginBottom:5, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.06em' };
+const panelCls = { background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px', display:'flex', flexDirection:'column', gap:10, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' };
 
 // ── Sub-tool: CREATE BM ────────────────────────────────────────────────────
 function CreateBmTool({ cookies }) {
@@ -127,7 +127,7 @@ function CreateBmTool({ cookies }) {
   return (
     <div style={panelCls}>
       <div style={{ ...sectionTitle, color:C.orange }}><SectionBar />🏗️ CREATE BM</div>
-      <div style={{ padding:'6px 8px', background:`rgba(255,107,26,.06)`, border:`1px solid rgba(255,107,26,.2)`, borderRadius:7, fontSize:9, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>
+      <div style={{ padding:'6px 8px', background:`rgba(255,107,26,.06)`, border:`1px solid rgba(255,107,26,.2)`, borderRadius:7, fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>
         ينشئ BMs بأسماء عشوائية مقبولة على فيسبوك
       </div>
 
@@ -135,7 +135,7 @@ function CreateBmTool({ cookies }) {
         <label style={labelCls}>◈ عدد الـ BM (max 5)</label>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
           <input type="number" min={1} max={5} value={count} onChange={e => setCount(e.target.value)} style={{ ...inputCls, width:60 }} disabled={running} />
-          <span style={{ fontSize:9, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 5</span>
+          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 5</span>
         </div>
       </div>
 
@@ -155,18 +155,18 @@ function CreateBmTool({ cookies }) {
 
       <div style={{ display:'flex', gap:6 }}>
         <button onClick={handleRun} disabled={running}
-          style={{ flex:1, padding:'8px', borderRadius:7, fontWeight:700, fontSize:11, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.orange},${C.goldH})`, color:'#fff', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow:`0 2px 10px ${C.orangeGlow}` }}>
+          style={{ flex:1, padding:'8px', borderRadius:7, fontWeight:700, fontSize:12.5, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.orange},${C.goldH})`, color:'#fff', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow:`0 2px 10px ${C.orangeGlow}` }}>
           {running ? <><Spin />يعمل...</> : '🏗️ CREATE BMs'}
         </button>
         {running && (
           <button onClick={() => { stopRef.current = true; }}
-            style={{ padding:'8px 12px', borderRadius:7, fontWeight:700, fontSize:11, cursor:'pointer', border:`1px solid ${C.red}55`, background:'rgba(239,68,68,0.1)', color:C.red }}>⏹</button>
+            style={{ padding:'8px 12px', borderRadius:7, fontWeight:700, fontSize:12.5, cursor:'pointer', border:`1px solid ${C.red}55`, background:'rgba(239,68,68,0.1)', color:C.red }}>⏹</button>
         )}
       </div>
 
       {/* Log */}
       {logs.length > 0 && (
-        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:100, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.7 }}>
+        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:100, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
           {logs.slice(-40).reverse().map((l, i) => (
             <div key={i} style={{ color: l.type==='success'?C.green:l.type==='error'?C.red:l.type==='warn'?C.warn:C.cyan, borderBottom:`1px solid rgba(255,255,255,.03)` }}>
               [{l.time}] {l.msg}
@@ -234,7 +234,7 @@ function CreateAdAccTool({ cookies }) {
   return (
     <div style={panelCls}>
       <div style={{ ...sectionTitle, color:C.blue }}><SectionBar />📊 CREATE AD ACC</div>
-      <div style={{ padding:'6px 8px', background:`rgba(24,119,242,.07)`, border:`1px solid rgba(24,119,242,.2)`, borderRadius:7, fontSize:9, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>
+      <div style={{ padding:'6px 8px', background:`rgba(24,119,242,.07)`, border:`1px solid rgba(24,119,242,.2)`, borderRadius:7, fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>
         ينشئ Ad Accounts عبر BizKitSettingsCreateAdAccountMutation
       </div>
 
@@ -242,7 +242,7 @@ function CreateAdAccTool({ cookies }) {
         <label style={labelCls}>◈ عدد الحسابات (max 10)</label>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
           <input type="number" min={1} max={10} value={count} onChange={e => setCount(e.target.value)} style={{ ...inputCls, width:60 }} disabled={running} />
-          <span style={{ fontSize:9, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 10</span>
+          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 10</span>
         </div>
       </div>
 
@@ -268,17 +268,17 @@ function CreateAdAccTool({ cookies }) {
 
       <div style={{ display:'flex', gap:6 }}>
         <button onClick={handleRun} disabled={running}
-          style={{ flex:1, padding:'8px', borderRadius:7, fontWeight:700, fontSize:11, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.blue},#1251b5)`, color:'#fff', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow:`0 2px 10px ${C.blueGlow}` }}>
+          style={{ flex:1, padding:'8px', borderRadius:7, fontWeight:700, fontSize:12.5, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.blue},#1251b5)`, color:'#fff', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow:`0 2px 10px ${C.blueGlow}` }}>
           {running ? <><Spin />يعمل...</> : '📊 CREATE'}
         </button>
         {running && (
           <button onClick={() => { stopRef.current = true; }}
-            style={{ padding:'8px 12px', borderRadius:7, fontWeight:700, fontSize:11, cursor:'pointer', border:`1px solid ${C.red}55`, background:'rgba(239,68,68,0.1)', color:C.red }}>⏹</button>
+            style={{ padding:'8px 12px', borderRadius:7, fontWeight:700, fontSize:12.5, cursor:'pointer', border:`1px solid ${C.red}55`, background:'rgba(239,68,68,0.1)', color:C.red }}>⏹</button>
         )}
       </div>
 
       {logs.length > 0 && (
-        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:100, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.7 }}>
+        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:100, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
           {logs.slice(-40).reverse().map((l, i) => (
             <div key={i} style={{ color: l.type==='success'?C.green:l.type==='error'?C.red:l.type==='warn'?C.warn:C.cyan, borderBottom:`1px solid rgba(255,255,255,.03)` }}>
               [{l.time}] {l.msg}
@@ -350,7 +350,7 @@ function AddInfoPanel({ cookies, onClose }) {
 
       <div style={{ ...sectionTitle, color:C.gold, justifyContent:'center' }}><SectionBar />⚡ ADD INFO BM</div>
 
-      <div style={{ padding:'8px 10px', background:'rgba(0,0,0,.3)', border:`1px solid ${C.border}`, borderRadius:7, fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.9, color:C.text }}>
+      <div style={{ padding:'8px 10px', background:'rgba(0,0,0,.3)', border:`1px solid ${C.border}`, borderRadius:7, fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.9, color:C.text }}>
         🏢 <span style={{ color:C.cyan }}>Name:</span> CONSELHO ESCOLAR VICE<br />
         📍 <span style={{ color:C.cyan }}>City:</span> Guarani, Goiás, BR<br />
         🪪 <span style={{ color:C.cyan }}>Tax ID:</span> 00658805000127<br />
@@ -371,7 +371,7 @@ function AddInfoPanel({ cookies, onClose }) {
       </button>
 
       {logs.length > 0 && (
-        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:90, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:9, lineHeight:1.7 }}>
+        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:90, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
           {logs.slice(-30).reverse().map((l, i) => (
             <div key={i} style={{ color: l.type==='success'?C.green:l.type==='error'?C.red:l.type==='warn'?C.warn:C.cyan }}>
               [{l.time}] {l.msg}
@@ -401,7 +401,7 @@ export default function BmCreatorModal({ onClose }) {
       <header style={{ background:`linear-gradient(135deg,#131313 0%,#1a1a1a 50%,#141414 100%)`, borderBottom:`1px solid ${C.border}`, padding:'12px 18px', flexShrink:0, boxShadow:`0 1px 20px rgba(245,158,11,0.08)` }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'5px 12px', color:C.textSub, fontSize:11, cursor:'pointer' }}>→ رجوع</button>
+            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'5px 12px', color:C.textSub, fontSize:12.5, cursor:'pointer' }}>→ رجوع</button>
             <img
               src="/meta_cards_from_bm.png"
               alt="Create BM & Ad Acc"
@@ -411,7 +411,7 @@ export default function BmCreatorModal({ onClose }) {
               <div style={{ fontSize:14, fontWeight:800, letterSpacing:'.3px', background:`linear-gradient(90deg,${C.gold},#fcd34d)`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>
                 CREATE BM & AD ACC & INFO
               </div>
-              <div style={{ fontSize:10, color:C.textMuted }}>إنشاء BM + حسابات إعلانية + بيانات البيزنس</div>
+              <div style={{ fontSize:11.5, color:C.textMuted }}>إنشاء BM + حسابات إعلانية + بيانات البيزنس</div>
             </div>
           </div>
         </div>
@@ -455,7 +455,7 @@ export default function BmCreatorModal({ onClose }) {
               }}
             >
               ⚡ ADD INFO BM
-              <span style={{ fontSize:10, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>يحدث بيانات البيزنس</span>
+              <span style={{ fontSize:11.5, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>يحدث بيانات البيزنس</span>
             </button>
           </div>
         ) : (
