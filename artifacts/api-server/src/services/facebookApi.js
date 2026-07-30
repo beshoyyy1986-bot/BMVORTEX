@@ -66,8 +66,9 @@ class FacebookApiService {
 
   /**
    * Create ad campaign
+   * ✅ BUG FIX: تم تغيير اسم الـ parameter من fb_dtsg إلى accessToken
    */
-  async createCampaign(fb_dtsg, adAccountId, campaignData, proxyOption, customProxy, cookies) {
+  async createCampaign(accessToken, adAccountId, campaignData, proxyOption, customProxy, cookies) {
     const client = this.createClient(proxyOption, customProxy);
     
     try {
