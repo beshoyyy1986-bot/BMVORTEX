@@ -42,6 +42,8 @@ function extractName(html) {
 }
 
 // ── Route 1: Verify & Extract Token ───────────────────────────────────────
+// NOTE: This tool uses internal fb_dtsg for GraphQL (like all other tools),
+// NOT an EAA access token. The EAA is only a bonus for optional Graph API calls.
 router.post("/verify-extract", async (req, res) => {
   const { cookies: cookiesRaw, proxy, billing_url } = req.body;
   if (!cookiesRaw) return res.json({ ok: false, reason: "أدخل الكوكيز أولاً" });
@@ -58,60 +60,34 @@ router.post("/verify-extract", async (req, res) => {
     "https://www.facebook.com/ads/manager/";
 
   try {
-    let accessToken = null;
-    let dtsg = null;
-    let name = null;
-    let adAccount = null;
-
-    // PRIMARY: use getSession (Playwright-first, same as ccFromBm + add-cards)
+    // Use getSession — same as ccFromBm, add-cards, boost-ad, fetch-page-posts
     const session = await getSession(cookieHeader, targetUrl, 25000, proxy);
-    if (session?.dtsg) {
-      dtsg = session.dtsg;
-      accessToken = session.accessToken || null;
-      if (session.html) {
-        name = extractName(session.html);
-        if (!adAccount) {
-          const m = session.html.match(/act[_=](\d+)/);
-          if (m) adAccount = `act_${m[1]}`;
-        }
-      }
+
+    if (!session?.dtsg) {
+      return res.json({
+        ok: false,
+        reason: "تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف",
+      });
     }
 
-    if (!adAccount) {
-      if (billing_url) {
-        const actId = extractActId(billing_url);
-        if (actId) adAccount = `act_${actId}`;
-      }
-      if (!adAccount) {
-        const m = (session?.html || "").match(/act[_=](\d+)/);
-        if (m) adAccount = `act_${m[1]}`;
-      }
+    let adAccount = null;
+    if (billing_url) {
+      const actId = extractActId(billing_url);
+      if (actId) adAccount = `act_${actId}`;
+    }
+    if (!adAccount && session.html) {
+      const m = session.html.match(/act[_=](\d+)/);
+      if (m) adAccount = `act_${m[1]}`;
     }
 
-    // FALLBACK: HTTP fetch (only if getSession failed entirely)
-    if (!dtsg) {
-      const resp = await fetch(targetUrl, fbFetchOpts(cookieHeader));
-      const html = await resp.text();
-
-      if (resp.url.includes("login") || resp.url.includes("checkpoint")) {
-        return res.json({
-          ok: false,
-          reason: "كوكيز منتهية أو الحساب محظور — جرب تحديث الكوكيز",
-        });
-      }
-
-      accessToken = extractToken(html);
-      if (name) name = extractName(html);
-    }
-
-    if (!name) name = extractName("");
+    const name = session.html ? extractName(session.html) : "مستخدم";
 
     return res.json({
-      ok: !!dtsg || !!accessToken,
-      token: accessToken || dtsg || null,
-      token_type: accessToken ? "access_token" : dtsg ? "dtsg" : null,
-      dtsg_present: !!dtsg,
-      name: name || "مستخدم",
+      ok: true,
+      token: session.dtsg,
+      token_type: "dtsg",
+      access_token: session.accessToken || null,
+      name,
       ad_account: adAccount,
     });
   } catch (e) {

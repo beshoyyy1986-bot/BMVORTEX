@@ -282,26 +282,16 @@ export default function MiniMeta2Modal({ onClose }) {
             {verifyResult.ok ? (
               <>
                 <div className="text-green-300 font-bold">
-                  ✅ {isAr ? "تم الاستخراج" : "Extracted"}
+                  ✅ {isAr ? "تم التحقق — الجلسة صالحة" : "Session valid"}
                 </div>
                 <div className="text-slate-300">
-                  {isAr ? "التوكن:" : "Token:"}{" "}
-                  <span className="font-mono text-amber-300">
-                    {verifyResult.token
-                      ? verifyResult.token.slice(0, 24) + "..."
-                      : isAr ? "لم يُستخرج" : "Not extracted"}
-                  </span>
-                  {verifyResult.token_type === "dtsg" && (
-                    <span className="ml-1.5 text-[10px] text-cyan-400">
-                      (fb_dtsg)
-                    </span>
-                  )}
-                  {verifyResult.token_type === "access_token" && (
-                    <span className="ml-1.5 text-[10px] text-green-400">
-                      (EAA)
-                    </span>
-                  )}
+                  fb_dtsg: <span className="font-mono text-cyan-300">{verifyResult.token.slice(0, 20)}...</span>
                 </div>
+                {verifyResult.access_token && (
+                  <div className="text-slate-300">
+                    EAA: <span className="font-mono text-green-300">{verifyResult.access_token.slice(0, 20)}...</span>
+                  </div>
+                )}
                 {verifyResult.name && (
                   <div className="text-slate-400">{verifyResult.name}</div>
                 )}
