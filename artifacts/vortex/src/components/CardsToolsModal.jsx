@@ -170,7 +170,7 @@ export default function CardsToolsModal({ onClose, navigateTo, pathname }) {
   };
 
   return (
-    <div className="flex h-screen w-full flex-col bg-[#0d0f14] text-white">
+    <div className="flex min-h-0 w-full flex-1 flex-col bg-[#0a0c10] text-white">
 
       {/* ── Top bar ── */}
       <header className="flex items-center gap-3 border-b border-white/8 bg-[#111318] px-5 py-3.5 shadow-sm">

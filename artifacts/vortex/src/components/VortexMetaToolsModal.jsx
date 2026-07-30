@@ -176,7 +176,7 @@ export default function VortexMetaToolsModal({ onClose }) {
   ];
 
   return (
-    <div style={{ display:'flex', height:'100%', width:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
+    <div style={{ display:'flex', flex:1, minHeight:0, width:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
       <style>{`@keyframes freeGlow{0%,100%{box-shadow:0 0 10px rgba(34,197,94,0.4)}50%{box-shadow:0 0 22px rgba(34,197,94,0.7)}}`}</style>
 
       {/* Header */}

@@ -100,7 +100,7 @@ export default function AddFundsModal({ onClose }) {
   };
 
   return (
-    <div style={{ display:'flex', height:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
+    <div style={{ display:'flex', flex:1, minHeight:0, flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
       {/* Header */}
       <header style={{ background:'linear-gradient(135deg,#0d0d0f,#161618)', borderBottom:`1px solid ${C.border}`, padding:'12px 20px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>

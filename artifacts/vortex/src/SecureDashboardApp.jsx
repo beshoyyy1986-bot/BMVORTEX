@@ -704,6 +704,23 @@ export default function SecureDashboardApp() {
 
   const modalTools = activeCard?.type === "ads" ? adsTools : activeCard?.type === "funds" ? fundTools : [];
 
+  // Tool pages used to span the full viewport width, which stretched every
+  // form row edge to edge and made the eye travel the whole screen to pair a
+  // label with its field. They now sit in a centred, bounded column that
+  // reads as a panel on the page.
+  function ToolPage({ children }) {
+    return (
+      <div className="min-h-screen w-full bg-[#07090d] px-3 py-4 sm:px-6 sm:py-6">
+        <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1180px] flex-col overflow-hidden
+                        rounded-2xl border border-white/15 bg-[#0a0c10]
+                        shadow-[0_10px_40px_-12px_rgba(0,0,0,0.9)] sm:min-h-[calc(100vh-3rem)]">
+          <Suspense fallback={<ChunkFallback />}>{children}</Suspense>
+        </div>
+      </div>
+    );
+  }
+  ToolPage.propTypes = { children: PropTypes.node };
+
   // ── Frozen account screen (blocks all access) ──────────────────
   if (frozen) {
     return (
@@ -906,148 +923,120 @@ export default function SecureDashboardApp() {
   // ── Payment Tools — standalone pages ──────────────────────────
   if (pathname === "/remove-payment") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <RemovePaymentModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <RemovePaymentModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
   if (pathname === "/add-funds-meta") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <AddFundsModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <AddFundsModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
   if (pathname === "/add-primary-cc") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="primary" />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="primary" />
+      </ToolPage>
     );
   }
   if (pathname === "/switch-bm-old") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="old" />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <AddPrimaryModal onClose={() => navigateTo("/")} defaultTab="old" />
+      </ToolPage>
     );
   }
 
   // ── Vortex Meta Tools — standalone page ───────────────────────
   if (pathname === "/vortex-meta-tools") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <VortexMetaToolsModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <VortexMetaToolsModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── BM Creator — standalone page ──────────────────────────────
   if (pathname === "/bm-creator") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <BmCreatorModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <BmCreatorModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── CC FROM BM — standalone page ──────────────────────────────
   if (pathname === "/cc-from-bm") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <CcFromBmModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <CcFromBmModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── Vortex CC Tools — standalone page ─────────────────────────
   if (pathname === "/cc-tools") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <VortexCCToolsPage onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <VortexCCToolsPage onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── Add Funds — standalone page (+ sub-routes) ────────────────
   if (pathname === "/funds" || pathname.startsWith("/funds/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <FundsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <FundsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
+      </ToolPage>
     );
   }
 
   // ── Add Cards — standalone page (+ sub-routes) ─────────────────
   if (pathname === "/cards" || pathname.startsWith("/cards/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <CardsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} closeLabel={t("close")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <CardsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} closeLabel={t("close")} />
+      </ToolPage>
     );
   }
 
   // ── Ads Creation — standalone page (+ sub-routes) ──────────────
   if (pathname === "/ads" || pathname.startsWith("/ads/")) {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <AdvertisingToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <AdvertisingToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
+      </ToolPage>
     );
   }
 
   // ── BM Meta Tool — standalone page ────────────────────────────
   if (pathname === "/bm-meta-tool") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <BmMetaToolModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <BmMetaToolModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── Meta Ads One Way — standalone page ────────────────────────
   if (pathname === "/meta-ads-one-way") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <MetaAdsOneWayModal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <MetaAdsOneWayModal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
   // ── Mini Meta 2$ — standalone page ──��─────────────────────────
   if (pathname === "/mini-meta-2") {
     return (
-      <div className="min-h-screen w-full bg-[#0a0c10]">
-        <Suspense fallback={<ChunkFallback />}>
-          <MiniMeta2Modal onClose={() => navigateTo("/")} />
-        </Suspense>
-      </div>
+      <ToolPage>
+        <MiniMeta2Modal onClose={() => navigateTo("/")} />
+      </ToolPage>
     );
   }
 
@@ -1250,10 +1239,10 @@ export default function SecureDashboardApp() {
             </span>
           </div>
 
-          {/* Cards are credit-card shaped (85.6:54), so they are short and
-              wide. Fewer columns than a square grid would take, otherwise
-              each card collapses into a thin strip. */}
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {/* Four across is the target layout at a normal desktop width, and
+              the column count is capped there — past 4 the cards only get
+              wider, never more numerous, so the logos stay a readable size. */}
+          <section className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {mainCards.map(card => {
               const unlocked = unlockedTypes.includes(card.type);
               const cardTitle = t(`card.${card.type}`);
@@ -1294,36 +1283,38 @@ export default function SecureDashboardApp() {
                       setActiveCard(card);
                     }
                   }}
-                  className={`group relative aspect-[85.6/54] overflow-hidden rounded-2xl border text-start transition-all hover:scale-[1.02] active:scale-[0.98] ${
+                  className={`group relative flex flex-col items-center justify-start gap-3 overflow-hidden rounded-2xl border p-4 text-center transition-all hover:scale-[1.02] active:scale-[0.98] ${
                     unlocked ? cls.card : cls.lockedCard
                   } ${unlocked ? "" : "cursor-not-allowed"}`}
                 >
-                  {card.logo ? (
-                    <>
-                      {/* The logo IS the card. Each asset already has the tool
-                          name rendered into it, so there is no text caption —
-                          it would just duplicate the artwork. `fill` stretches
-                          the art edge to edge: the assets mix square and wide
-                          ratios, and `cover` would crop the name off while
-                          `contain` would letterbox them at different sizes. */}
+                  {/* The artwork is a fixed-height badge rather than the whole
+                      card, so the tool name below it is what the eye lands on.
+                      `contain` keeps the mixed square/wide assets from being
+                      stretched or cropped. */}
+                  <span className="flex h-[86px] w-full items-center justify-center">
+                    {card.logo ? (
                       <img
                         src={card.logo}
-                        alt={cardTitle}
-                        title={cardTitle}
+                        alt=""
                         loading="lazy"
                         draggable="false"
-                        className={`absolute inset-0 z-0 h-full w-full object-fill transition-transform duration-500 ${
+                        className={`max-h-full max-w-[78%] object-contain transition-transform duration-500 ${
                           unlocked ? "group-hover:scale-[1.06]" : ""
                         }`}
                       />
-                      <span className="sr-only">{cardTitle}</span>
-                    </>
-                  ) : (
-                    <div className="p-4">
-                      <h3 className={`text-sm font-bold ${isDark ? "text-slate-100" : "text-slate-800"}`}>{cardTitle}</h3>
-                      <p className={`mt-1.5 text-xs ${cls.subtext}`}>{t("card_hint")}</p>
-                    </div>
-                  )}
+                    ) : (
+                      <span className={`flex h-14 w-14 items-center justify-center rounded-2xl border text-xl font-black ${
+                        isDark ? "border-white/15 bg-white/5 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-500"
+                      }`}>
+                        {cardTitle.trim().charAt(0)}
+                      </span>
+                    )}
+                  </span>
+                  <h3 className={`w-full text-sm font-bold leading-snug ${
+                    isDark ? "text-slate-100" : "text-slate-800"
+                  }`}>
+                    {cardTitle}
+                  </h3>
 
                   {!unlocked && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5

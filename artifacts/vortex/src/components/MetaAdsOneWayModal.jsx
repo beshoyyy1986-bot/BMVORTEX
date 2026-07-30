@@ -231,7 +231,7 @@ export default function MetaAdsOneWayModal({ onClose }) {
   // ── Render ────────────────────────────────────────────────────────
   return (
     <div
-      className="flex h-full w-full flex-col"
+      className="flex min-h-0 w-full flex-1 flex-col"
       dir="rtl"
       style={{ background: C.bg, fontFamily: "'Tajawal','Segoe UI',sans-serif", fontSize: 13 }}
     >

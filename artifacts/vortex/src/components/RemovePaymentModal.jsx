@@ -72,7 +72,7 @@ export default function RemovePaymentModal({ onClose }) {
   const toggleAll = (v) => { const n={}; cards.forEach((_,i) => n[i]=v); setChecked(n); };
 
   return (
-    <div style={{ display:'flex', height:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
+    <div style={{ display:'flex', flex:1, minHeight:0, flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
       <style>{`@keyframes bmSpin{to{transform:rotate(360deg)}}`}</style>
 
       {/* Header */}

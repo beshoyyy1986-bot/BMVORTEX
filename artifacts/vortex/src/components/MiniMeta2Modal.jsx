@@ -552,7 +552,7 @@ export default function MiniMeta2Modal({ onClose }) {
   /* ── render ── */
   return (
     <div
-      className="flex h-full w-full flex-col bg-[#0f0f0f]"
+      className="flex min-h-0 w-full flex-1 flex-col bg-[#0a0c10]"
       dir={isAr ? "rtl" : "ltr"}
     >
       {/* Header */}

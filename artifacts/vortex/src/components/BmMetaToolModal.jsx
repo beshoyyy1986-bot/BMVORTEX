@@ -592,7 +592,7 @@ export default function BmMetaToolModal({ onClose }) {
   };
 
   return (
-    <div dir="rtl" className="flex h-full w-full flex-col bg-[#0d0d0d] text-white">
+    <div dir="rtl" className="flex min-h-0 w-full flex-1 flex-col bg-[#0a0c10] text-white">
       {/* ── Header ──────────────────────────────────────── */}
       <header className="flex items-center gap-3 border-b border-amber-500/20 bg-black/60 px-4 py-2.5 sticky top-0 z-40">
         <img src="/bm_meta_tool.png" alt="BM META TOOL" className="h-14 w-14 object-contain drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" />

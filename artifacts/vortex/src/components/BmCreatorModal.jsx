@@ -390,7 +390,7 @@ export default function BmCreatorModal({ onClose }) {
   const [showAddInfo, setShowAddInfo] = useState(false);
 
   return (
-    <div style={{ display:'flex', height:'100%', width:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif", fontSize:13 }} dir="rtl">
+    <div style={{ display:'flex', flex:1, minHeight:0, width:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif", fontSize:13 }} dir="rtl">
       <style>{`
         @keyframes bmSpin { to { transform: rotate(360deg) } }
         @keyframes bmPulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
