@@ -211,13 +211,16 @@ const IN_PAGE_HARVEST = () => {
 
     if (!result.dtsg) {
       const dtsgPatterns = [
-        /"DTSGInitialData"[^}]*?"token"\s*:\s*"([^"]+)"/,
-        /DTSGInitialData[^}]*"token":"([^"]+)"/,
+        /DTSGInitialData[^}]{0,300}"token"\s*:\s*"([^"]{8,100})"/,
+        /"DTSGInitialData"[^}]{0,300}"token"\s*:\s*"([^"]{8,100})"/,
         /"dtsg"\s*:\s*\{\s*"token"\s*:\s*"([^"]+)"/,
         /"fb_dtsg"\s*,\s*"[^"]*"\s*,\s*"([^"]+)"/,
         /name="fb_dtsg"\s+value="([^"]+)"/,
         /"token"\s*:\s*"(NAf[A-Za-z0-9_-]+)"/,
         /"token"\s*:\s*"(NACP[A-Za-z0-9_-]+)"/,
+        /"token"\s*:\s*"(NAfw[A-Za-z0-9_-]+)"/,
+        /"token"\s*:\s*"(NAcP[A-Za-z0-9_-]+)"/,
+        /"token"\s*:\s*"(NAbb[A-Za-z0-9_-]+)"/,
         /"token"\s*:\s*"([A-Za-z0-9_-]{12,80})"/,
       ];
       for (const p of dtsgPatterns) {
@@ -235,6 +238,7 @@ const IN_PAGE_HARVEST = () => {
         /"LSD",\[\d+\],\{token:"([^"]+)"\}/,
         /"lsd"\s*:\s*"([^"]+)"/,
         /name="lsd"\s+value="([^"]+)"/,
+        /\["LSD",[^\]]*,"([A-Za-z0-9_-]{4,20})"\]/,
       ];
       for (const p of lsdPatterns) {
         const m = blob.match(p);
@@ -249,8 +253,10 @@ const IN_PAGE_HARVEST = () => {
       const tokPatterns = [
         /"accessToken"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
         /"access_token"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
+        /"act_access_token"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
         /"token"\s*:\s*"(EAA[A-Za-z0-9]{40,})"/,
         /(EAA[Bb][A-Za-z0-9]{60,})/,
+        /(EAAG[A-Za-z0-9]{60,})/,
       ];
       for (const p of tokPatterns) {
         const m = blob.match(p);
@@ -263,10 +269,14 @@ const IN_PAGE_HARVEST = () => {
 
     if (!result.userId) {
       const uidPatterns = [
-        /"actorID"\s*:\s*"(\d+)"/,
-        /"USER_ID"\s*:\s*"(\d+)"/,
-        /"userID"\s*:\s*"(\d+)"/,
-        /"viewer_actor_id"\s*:\s*"(\d+)"/,
+        /"actorID"\s*:\s*"(\d{6,})"/,
+        /"USER_ID"\s*:\s*"(\d{6,})"/,
+        /"userID"\s*:\s*"(\d{6,})"/,
+        /"viewer_actor_id"\s*:\s*"(\d{6,})"/,
+        /"uid"\s*:\s*(\d{6,})/,
+        /"uid"\s*:\s*"(\d{6,})"/,
+        /"profile_owner"\s*:\s*\{[^}]{0,200}"id"\s*:\s*"(\d{6,})"/,
+        /"viewer"\s*:\s*\{[^}]{0,200}"id"\s*:\s*"(\d{6,})"/,
       ];
       for (const p of uidPatterns) {
         const m = blob.match(p);
@@ -279,9 +289,11 @@ const IN_PAGE_HARVEST = () => {
 
     if (!result.bizId) {
       const bizPatterns = [
-        /"business_id"\s*:\s*"(\d+)"/,
-        /"businessID"\s*:\s*"(\d+)"/,
-        /"current_business_id"\s*:\s*"(\d+)"/,
+        /"business_id"\s*:\s*"(\d{6,})"/,
+        /"businessID"\s*:\s*"(\d{6,})"/,
+        /"current_business_id"\s*:\s*"(\d{6,})"/,
+        /"biz_id"\s*:\s*"(\d{6,})"/,
+        /"selectedBusinessId"\s*:\s*"(\d{6,})"/,
       ];
       for (const p of bizPatterns) {
         const m = blob.match(p);
