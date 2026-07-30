@@ -58,14 +58,16 @@ router.post("/verify-extract", async (req, res) => {
     "https://www.facebook.com/ads/manager/";
 
   try {
-    let token = null;
+    let accessToken = null;
+    let dtsg = null;
     let name = null;
     let adAccount = null;
 
     // PRIMARY: use getSession (Playwright-first, same as ccFromBm + add-cards)
     const session = await getSession(cookieHeader, targetUrl, 25000, proxy);
     if (session?.dtsg) {
-      token = session.accessToken || null;
+      dtsg = session.dtsg;
+      accessToken = session.accessToken || null;
       if (session.html) {
         name = extractName(session.html);
         if (!adAccount) {
@@ -74,33 +76,6 @@ router.post("/verify-extract", async (req, res) => {
         }
       }
     }
-
-    // FALLBACK: HTTP fetch HTML extraction (if session failed or no accessToken)
-    if (!token) {
-      const resp = await fetch(targetUrl, fbFetchOpts(cookieHeader));
-      const html = await resp.text();
-
-      if (resp.url.includes("login") || resp.url.includes("checkpoint")) {
-        return res.json({
-          ok: false,
-          reason: "كوكيز منتهية أو الحساب محظور — جرب تحديث الكوكيز",
-        });
-      }
-
-      token = extractToken(html);
-      if (!token && billing_url?.trim()) {
-        const resp2 = await fetch(
-          "https://www.facebook.com/ads/manager/",
-          fbFetchOpts(cookieHeader)
-        );
-        const html2 = await resp2.text();
-        token = extractToken(html2);
-      }
-
-      if (!name) name = extractName(html);
-    }
-
-    if (!name) name = extractName("");
 
     if (!adAccount) {
       if (billing_url) {
@@ -113,9 +88,29 @@ router.post("/verify-extract", async (req, res) => {
       }
     }
 
+    // FALLBACK: HTTP fetch (only if getSession failed entirely)
+    if (!dtsg) {
+      const resp = await fetch(targetUrl, fbFetchOpts(cookieHeader));
+      const html = await resp.text();
+
+      if (resp.url.includes("login") || resp.url.includes("checkpoint")) {
+        return res.json({
+          ok: false,
+          reason: "كوكيز منتهية أو الحساب محظور — جرب تحديث الكوكيز",
+        });
+      }
+
+      accessToken = extractToken(html);
+      if (name) name = extractName(html);
+    }
+
+    if (!name) name = extractName("");
+
     return res.json({
-      ok: true,
-      token: token || null,
+      ok: !!dtsg || !!accessToken,
+      token: accessToken || dtsg || null,
+      token_type: accessToken ? "access_token" : dtsg ? "dtsg" : null,
+      dtsg_present: !!dtsg,
       name: name || "مستخدم",
       ad_account: adAccount,
     });

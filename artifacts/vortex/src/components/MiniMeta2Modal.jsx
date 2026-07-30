@@ -291,6 +291,16 @@ export default function MiniMeta2Modal({ onClose }) {
                       ? verifyResult.token.slice(0, 24) + "..."
                       : isAr ? "لم يُستخرج" : "Not extracted"}
                   </span>
+                  {verifyResult.token_type === "dtsg" && (
+                    <span className="ml-1.5 text-[10px] text-cyan-400">
+                      (fb_dtsg)
+                    </span>
+                  )}
+                  {verifyResult.token_type === "access_token" && (
+                    <span className="ml-1.5 text-[10px] text-green-400">
+                      (EAA)
+                    </span>
+                  )}
                 </div>
                 {verifyResult.name && (
                   <div className="text-slate-400">{verifyResult.name}</div>
