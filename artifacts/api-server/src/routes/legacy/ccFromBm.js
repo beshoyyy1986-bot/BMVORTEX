@@ -32,7 +32,7 @@ const FB_HEADERS = {
   'Accept-Language': 'ar,en-US;q=0.7',
 };
 
-async function graphql(origin, params, cookie) {
+async function graphql(origin, params, cookie, lsd = '') {
   const res = await fetch(`${origin}/api/graphql/`, {
     method: 'POST',
     headers: {
@@ -40,6 +40,11 @@ async function graphql(origin, params, cookie) {
       'Cookie': cookie,
       'Content-Type': 'application/x-www-form-urlencoded',
       'Referer': origin,
+      'X-FB-LSD': lsd,
+      'X-FB-Friendly-Name': params.fb_api_req_friendly_name || 'GraphQL',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Dest': 'empty',
     },
     body: new URLSearchParams(params).toString(),
   });
@@ -72,6 +77,7 @@ router.post('/fetch-cards', async (req, res) => {
     `${origin}/billing_hub/payment_accounts/?business_id=${businessId}`
   );
   const fb_dtsg = session?.dtsg;
+  const lsd = session?.lsd || '';
 
   if (!fb_dtsg) {
     return res.json({ ok: false, reason: 'تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف' });
@@ -81,11 +87,12 @@ router.post('/fetch-cards', async (req, res) => {
   const r1 = await graphql(origin, {
     av: userId, __user: userId, __bid: businessId, __aaid: adAccountId,
     fb_dtsg,
+    lsd,
     fb_api_caller_class: 'RelayModern',
     fb_api_req_friendly_name: 'BillingHubPaymentMethodsViewQuery',
     variables: JSON.stringify({ businessID: businessId }),
     doc_id: '23945721255021756',
-  }, cookie);
+  }, cookie, lsd);
 
   const payAccountId = r1?.data?.business?.billing_payment_account?.id;
   if (!payAccountId) {
@@ -97,6 +104,7 @@ router.post('/fetch-cards', async (req, res) => {
   const r2 = await graphql(origin, {
     av: userId, __user: userId, __bid: businessId, __aaid: adAccountId,
     fb_dtsg,
+    lsd,
     fb_api_caller_class: 'RelayModern',
     fb_api_req_friendly_name: 'BillingHubPaymentMethodsBusinessSectionQuery',
     variables: JSON.stringify({
@@ -106,7 +114,7 @@ router.post('/fetch-cards', async (req, res) => {
       connected_asset_detail_limit: 5,
     }),
     doc_id: '24585166657733775',
-  }, cookie);
+  }, cookie, lsd);
 
   const methods = r2?.data?.payment_account?.billing_payment_methods;
   if (!methods || methods.length === 0) {
