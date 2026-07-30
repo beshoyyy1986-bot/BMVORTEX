@@ -174,60 +174,90 @@ export function extractFromHtml(html) {
 
   const notEaa = (v) => v && !v.startsWith('EAA');
 
+  // ── fbDtsg ── من الأعلى confidence للأقل
   const fbDtsg = _first(
     html,
     [
-      /DTSGInitialData[^}]*"token"\s*:\s*"([^"]+)"/,
-      /"DTSGInitialData"[^}]*?"token"\s*:\s*"([^"]+)"/,
+      // 1) DTSGInitialData structure الأوضح — أعلى confidence
+      /DTSGInitialData[^}]{0,300}"token"\s*:\s*"([^"]{8,100})"/,
+      /"DTSGInitialData"[^}]{0,300}"token"\s*:\s*"([^"]{8,100})"/,
+      // 2) dtsg object مباشر
       /"dtsg"\s*:\s*\{\s*"token"\s*:\s*"([^"]+)"/,
+      // 3) HTML form field
       /name="fb_dtsg"\s+value="([^"]+)"/,
       /name="fb_dtsg"\s+value='([^']+)'/,
+      // 4) Relay store / server data
       /"fb_dtsg"\s*,\s*"[^"]*"\s*,\s*"([^"]+)"/,
       /"s"\s*:\s*"fb_dtsg"\s*,\s*"v"\s*:\s*"([^"]+)"/,
+      // 5) prefixes معروفة — شاملة
       /"token"\s*:\s*"(NAf[A-Za-z0-9_-]+)"/,
       /"token"\s*:\s*"(NACP[A-Za-z0-9_-]+)"/,
       /"token"\s*:\s*"(NAfw[A-Za-z0-9_-]+)"/,
-      /"fb_dtsg"\s*:\s*"([A-Za-z0-9_-]+)"/,
+      /"token"\s*:\s*"(NAcP[A-Za-z0-9_-]+)"/,
+      /"token"\s*:\s*"(NAbb[A-Za-z0-9_-]+)"/,
+      // 6) مفتاح مباشر
+      /"fb_dtsg"\s*:\s*"([A-Za-z0-9_-]{8,})"/,
+      // 7) global variable
       /__DTSG\s*=\s*['"]([A-Za-z0-9_-]+)['"]/,
+      // 8) fallback فضفاض — آخر ملجأ
       /"token"\s*:\s*"([A-Za-z0-9_-]{12,80})"/,
     ],
     notEaa
   );
 
+  // ── lsd ──
   const lsd = _first(html, [
     /"LSD",\[\d+\],\{"token":"([^"]+)"\}/,
     /"LSD",\[\d+\],\{token:"([^"]+)"\}/,
     /"lsd"\s*:\s*"([^"]+)"/,
     /name="lsd"\s+value="([^"]+)"/,
     /"lsdToken"\s*:\s*"([^"]+)"/,
+    // relay store array format
+    /\["LSD",[^\]]*,"([A-Za-z0-9_-]{4,20})"\]/,
   ]);
 
+  // ── accessToken — context-aware أولاً ──
   const accessToken = _first(html, [
     /"accessToken"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
     /"access_token"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
     /"act_access_token"\s*:\s*"(EAA[A-Za-z0-9]+)"/,
     /"token"\s*:\s*"(EAA[A-Za-z0-9]{40,})"/,
+    // bare match — آخر ملجأ بطول أكبر لتقليل false positives
     /(EAA[Bb][A-Za-z0-9]{60,})/,
+    /(EAAG[A-Za-z0-9]{60,})/,
   ]);
 
+  // ── userId — يشمل uid كـ string وكـ number ──
   const userId = _first(html, [
-    /"actorID"\s*:\s*"(\d+)"/,
-    /"userID"\s*:\s*"(\d+)"/,
-    /"USER_ID"\s*:\s*"(\d+)"/,
-    /"viewer_actor_id"\s*:\s*"(\d+)"/,
-    /"uid"\s*:\s*(\d+)/,
+    /"actorID"\s*:\s*"(\d{6,})"/,
+    /"userID"\s*:\s*"(\d{6,})"/,
+    /"USER_ID"\s*:\s*"(\d{6,})"/,
+    /"viewer_actor_id"\s*:\s*"(\d{6,})"/,
+    // uid بدون quotes (JSON number)
+    /"uid"\s*:\s*(\d{6,})/,
+    // uid بـ quotes (JSON string) — كان مفقوداً
+    /"uid"\s*:\s*"(\d{6,})"/,
+    // viewer / profile_owner contexts
+    /"profile_owner"\s*:\s*\{[^}]{0,200}"id"\s*:\s*"(\d{6,})"/,
+    /"viewer"\s*:\s*\{[^}]{0,200}"id"\s*:\s*"(\d{6,})"/,
   ]);
 
+  // ── bizId — شامل Business Suite params ──
   const bizId = _first(html, [
-    /"business_id"\s*:\s*"(\d+)"/,
-    /"businessID"\s*:\s*"(\d+)"/,
-    /"current_business_id"\s*:\s*"(\d+)"/,
+    /"business_id"\s*:\s*"(\d{6,})"/,
+    /"businessID"\s*:\s*"(\d{6,})"/,
+    /"current_business_id"\s*:\s*"(\d{6,})"/,
+    /"biz_id"\s*:\s*"(\d{6,})"/,
+    /"selectedBusinessId"\s*:\s*"(\d{6,})"/,
+    /[?&]business_id=(\d{6,})/,
   ]);
 
+  // ── igUserId ──
   const igUserId = _first(html, [
-    /"viewerId"\s*:\s*"(\d+)"/,
-    /"ids"\s*:\s*\{\s*"(\d+)"/,
-    /"ds_user_id"\s*:\s*"(\d+)"/,
+    /"viewerId"\s*:\s*"(\d{6,})"/,
+    /"ids"\s*:\s*\{\s*"(\d{6,})"/,
+    /"ds_user_id"\s*:\s*"(\d{6,})"/,
+    /"userId"\s*:\s*(\d{6,})/,
   ]);
 
   return { fbDtsg, lsd, accessToken, userId, bizId, igUserId };
@@ -322,6 +352,8 @@ export function extractAdAccountId(input) {
       'aaid',
       'payment_account_id',
       'selected_campaign_ids',
+      'selectedAdAccountId',
+      'adAccountId',
     ],
     bareprefixes: ['act'],
     minLen: 6,
@@ -331,11 +363,18 @@ export function extractAdAccountId(input) {
 export function extractBusinessId(input) {
   if (!input) return null;
   if (typeof input !== 'string') return null;
-  // Also scan HTML-ish business_id
-  const fromHtml = input.match(/"business_id"\s*:\s*"(\d+)"/) || input.match(/[?&]business_id=(\d+)/);
+
+  // HTML / JSON patterns أولاً
+  const fromHtml =
+    input.match(/"business_id"\s*:\s*"(\d{6,})"/) ||
+    input.match(/"biz_id"\s*:\s*"(\d{6,})"/) ||
+    input.match(/"selectedBusinessId"\s*:\s*"(\d{6,})"/) ||
+    input.match(/[?&]business_id=(\d{6,})/);
+
   if (fromHtml) return fromHtml[1];
+
   return _extractId(input, {
-    paramNames: ['business_id', 'biz_id', 'bid', 'bm_id'],
+    paramNames: ['business_id', 'biz_id', 'bid', 'bm_id', 'businessId'],
     minLen: 6,
   });
 }
