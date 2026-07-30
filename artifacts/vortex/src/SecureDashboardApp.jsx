@@ -349,6 +349,28 @@ function ensureSupabase() {
   if (!supabase) throw new Error("Supabase client not initialized");
 }
 
+// Tool pages used to span the full viewport width, which stretched every
+// form row edge to edge and made the eye travel the whole screen to pair a
+// label with its field. They now sit in a centred, bounded column that
+// reads as a panel on the page.
+//
+// Must stay at module scope: defining it inside SecureDashboardApp gave it a
+// fresh identity on every render, so React unmounted and remounted the whole
+// tool subtree — wiping every field the user had typed — whenever Supabase
+// refreshed the token on tab focus.
+function ToolPage({ children }) {
+  return (
+    <div className="min-h-screen w-full bg-[#07090d] px-3 py-4 sm:px-6 sm:py-6">
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1180px] flex-col overflow-hidden
+                      rounded-2xl border border-white/15 bg-[#0a0c10]
+                      shadow-[0_10px_40px_-12px_rgba(0,0,0,0.9)] sm:min-h-[calc(100vh-3rem)]">
+        <Suspense fallback={<ChunkFallback />}>{children}</Suspense>
+      </div>
+    </div>
+  );
+}
+ToolPage.propTypes = { children: PropTypes.node };
+
 // ── Main app ──────────────────────────────────────────────────────
 export default function SecureDashboardApp() {
   const { t, lang, toggleLang, isArabic } = useLang();
@@ -703,23 +725,6 @@ export default function SecureDashboardApp() {
   }
 
   const modalTools = activeCard?.type === "ads" ? adsTools : activeCard?.type === "funds" ? fundTools : [];
-
-  // Tool pages used to span the full viewport width, which stretched every
-  // form row edge to edge and made the eye travel the whole screen to pair a
-  // label with its field. They now sit in a centred, bounded column that
-  // reads as a panel on the page.
-  function ToolPage({ children }) {
-    return (
-      <div className="min-h-screen w-full bg-[#07090d] px-3 py-4 sm:px-6 sm:py-6">
-        <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-[1180px] flex-col overflow-hidden
-                        rounded-2xl border border-white/15 bg-[#0a0c10]
-                        shadow-[0_10px_40px_-12px_rgba(0,0,0,0.9)] sm:min-h-[calc(100vh-3rem)]">
-          <Suspense fallback={<ChunkFallback />}>{children}</Suspense>
-        </div>
-      </div>
-    );
-  }
-  ToolPage.propTypes = { children: PropTypes.node };
 
   // ── Frozen account screen (blocks all access) ──────────────────
   if (frozen) {
