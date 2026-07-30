@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { getProxyManager } from '../utils/proxyManager.js';
-import { extractFbDtsg, extractActorId, buildCookieHeader } from '../utils/cookieParser.js';
+import { resolveFbDtsg, extractActorId, buildCookieHeader } from '../utils/cookieParser.js';
 
 const router = express.Router();
 const FB_GRAPHQL_URL = 'https://business.facebook.com/api/graphql';
@@ -48,7 +48,7 @@ router.post('/convert-prepaid', async (req, res) => {
     }
 
     // Extract fb_dtsg and actor_id from cookies if not provided
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
     const extractedActorId = actor_id || extractActorId(cookies);
 
     if (!fb_dtsg) {
@@ -141,7 +141,7 @@ router.post('/fetch-cards', async (req, res) => {
     }
 
     // Extract fb_dtsg from cookies
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
 
     if (!fb_dtsg) {
       return res.status(400).json({
@@ -221,7 +221,7 @@ router.post('/enable-billing', async (req, res) => {
     }
 
     // Extract fb_dtsg and actor_id from cookies if not provided
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
     const extractedActorId = actor_id || extractActorId(cookies);
 
     if (!fb_dtsg) {
@@ -315,7 +315,7 @@ router.post('/add-funds', async (req, res) => {
     }
 
     // Extract fb_dtsg and actor_id from cookies if not provided
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
     const extractedActorId = actor_id || extractActorId(cookies);
 
     if (!fb_dtsg) {

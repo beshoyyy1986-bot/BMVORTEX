@@ -10,7 +10,7 @@
 import { Router } from 'express';
 import {
   buildCookieHeader,
-  extractFromHtml,
+  getSession,
   extractFromCookieStr,
   extractAdAccountId,
   extractBusinessId,
@@ -19,7 +19,6 @@ import {
 const router = Router();
 
 // ── shim helpers ──────────────────────────────────────────────────────────
-const extractFbDtsg  = (html) => extractFromHtml(html).fbDtsg;
 const extractUserId  = (cookieHeader) => extractFromCookieStr(cookieHeader).cUser;
 
 /** Extract businessId and adAccountId (digits only) from a billing URL, a bare ID, or "act_" form */
@@ -64,24 +63,19 @@ router.post('/fetch-cards', async (req, res) => {
   if (!businessId)  return res.json({ ok: false, reason: 'لم يتم استخراج business_id من الرابط' });
   if (!adAccountId) return res.json({ ok: false, reason: 'لم يتم استخراج ad_account_id من الرابط' });
 
-  // ── Step 0: Load business.facebook.com to extract fb_dtsg ────────────────
-  let fb_dtsg = null;
+  // ── Step 0: Resolve fb_dtsg via the shared session extractor ─────────────
+  // A single page fetch often lands on a shell that carries no dtsg, so go
+  // through getSession — it tries Playwright, then several URLs over HTTP.
   const origin = 'https://business.facebook.com';
-  try {
-    const pageRes = await fetch(`${origin}/billing_hub/payment_accounts/?business_id=${businessId}`, {
-      headers: { ...FB_HEADERS, 'Cookie': cookie },
-      redirect: 'follow',
-    });
-    if (pageRes.url.includes('login') || pageRes.url.includes('checkpoint')) {
-      return res.json({ ok: false, reason: 'الكوكيز منتهية أو الحساب موقوف' });
-    }
-    const html = await pageRes.text();
-    fb_dtsg = extractFbDtsg(html);
-  } catch(e) {
-    return res.json({ ok: false, reason: `خطأ في الاتصال: ${e.message.slice(0,80)}` });
-  }
+  const session = await getSession(
+    cookie,
+    `${origin}/billing_hub/payment_accounts/?business_id=${businessId}`
+  );
+  const fb_dtsg = session?.dtsg;
 
-  if (!fb_dtsg) return res.json({ ok: false, reason: 'تعذّر استخراج fb_dtsg — تحقق من الكوكيز' });
+  if (!fb_dtsg) {
+    return res.json({ ok: false, reason: 'تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف' });
+  }
 
   // ── Step 1: Get billing payment account ID ────────────────────────────────
   const r1 = await graphql(origin, {

@@ -1,51 +1,50 @@
 /**
  * Cookie Parser Utility
- * Extracts fb_dtsg and other tokens from Meta cookies
+ *
+ * Thin shim over utils/metaTokens.js so every tool resolves tokens the same way.
+ *
+ * fb_dtsg is NOT a cookie — it is a per-session CSRF token that Facebook embeds
+ * in the page HTML. Scanning the cookie string for it (what this file used to
+ * do) returns null for every real login, which is why the tools that imported
+ * from here failed with "تعذّر استخراج fb_dtsg". Resolving it requires an
+ * actual page fetch, so resolveFbDtsg is async.
  */
 
-function extractFbDtsg(cookies) {
+import {
+  buildCookieHeader as buildHeader,
+  extractFromCookieStr,
+  getSession,
+} from '../../utils/metaTokens.js';
+
+/** Resolve fb_dtsg for a cookie blob. Async — needs a page fetch. */
+async function resolveFbDtsg(cookies, url, proxy) {
   if (!cookies) return null;
-  
-  // Try to extract fb_dtsg from cookies
-  const fbDtsgMatch = cookies.match(/fb_dtsg=([^;]+)/);
-  if (fbDtsgMatch) {
-    return decodeURIComponent(fbDtsgMatch[1]);
+  let header;
+  try {
+    header = buildHeader(cookies);
+  } catch {
+    return null;
   }
-  
-  // Alternative patterns
-  const patterns = [
-    /dtsg=([^;]+)/,
-    /fb_dtsg=([^;]+)/,
-    /"fb_dtsg":"([^"]+)"/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = cookies.match(pattern);
-    if (match) {
-      return decodeURIComponent(match[1]);
-    }
-  }
-  
-  return null;
+  const session = await getSession(header, url, 20000, proxy);
+  return session?.dtsg || null;
 }
 
 function extractActorId(cookies) {
   if (!cookies) return null;
-  
-  // Extract c_user (user ID) from cookies
-  const cUserMatch = cookies.match(/c_user=([^;]+)/);
-  if (cUserMatch) {
-    return decodeURIComponent(cUserMatch[1]);
+  try {
+    return extractFromCookieStr(buildHeader(cookies)).cUser;
+  } catch {
+    return null;
   }
-  
-  return null;
 }
 
 function buildCookieHeader(cookies) {
   if (!cookies) return '';
-  
-  // Clean up cookies and ensure proper format
-  return cookies.trim();
+  try {
+    return buildHeader(cookies);
+  } catch {
+    return String(cookies).trim();
+  }
 }
 
-export { extractFbDtsg, extractActorId, buildCookieHeader };
+export { resolveFbDtsg, extractActorId, buildCookieHeader };

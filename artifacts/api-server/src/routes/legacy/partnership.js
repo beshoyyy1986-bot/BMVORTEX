@@ -1,7 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import { getProxyConfig } from '../utils/proxyManager.js';
-import { extractFbDtsg, extractActorId, buildCookieHeader } from '../utils/cookieParser.js';
+import { resolveFbDtsg, extractActorId, buildCookieHeader } from '../utils/cookieParser.js';
 
 const router = express.Router();
 const FB_GRAPHQL_URL = 'https://business.facebook.com/api/graphql';
@@ -32,7 +32,7 @@ router.post('/partnership', async (req, res) => {
     }
 
     // Extract fb_dtsg and actor_id from cookies
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
     const actor_id = extractActorId(cookies);
 
     if (!fb_dtsg) {
@@ -207,7 +207,7 @@ router.post('/activate', async (req, res) => {
       });
     }
 
-    const fb_dtsg = extractFbDtsg(cookies);
+    const fb_dtsg = await resolveFbDtsg(cookies, undefined, proxy);
 
     if (!fb_dtsg) {
       return res.status(400).json({

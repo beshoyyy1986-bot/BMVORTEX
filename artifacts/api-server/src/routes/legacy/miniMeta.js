@@ -9,6 +9,7 @@ import {
   extractAdAccountId,
   buildFbHeaders,
   fetchAndExtract,
+  getSession,
 } from "../../utils/metaTokens.js";
 
 const router = Router();
@@ -17,7 +18,6 @@ const router = Router();
 
 const fbFetchOpts = (cookieHeader, extra = {}) => buildFbHeaders(cookieHeader, extra);
 const extractToken  = (html) => extractFromHtml(html).accessToken;
-const extractFbDtsg = (html) => extractFromHtml(html).fbDtsg;
 const extractActId  = (input) => extractAdAccountId(input);
 
 /** Extract LSD token from HTML */
@@ -117,18 +117,14 @@ router.post("/add-cards", async (req, res) => {
   }
 
   // Extract fb_dtsg + lsd needed for card operations
-  let fb_dtsg = "", lsd = "";
-  try {
-    const r = await fetch("https://www.facebook.com/", fbFetchOpts(cookieHeader));
-    const html = await r.text();
-    fb_dtsg = extractFbDtsg(html) || "";
-    lsd = extractLsd(html) || "";
-  } catch (_) {}
+  const session = await getSession(cookieHeader, "https://www.facebook.com/", 20000, proxy);
+  const fb_dtsg = session?.dtsg || "";
+  const lsd = session?.lsd || "";
 
   if (!fb_dtsg) {
     return res.json({
       ok: false,
-      reason: "تعذّر استخراج fb_dtsg — تحقق من الكوكيز",
+      reason: "تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف",
     });
   }
 
@@ -270,13 +266,12 @@ router.post("/fetch-page-posts", async (req, res) => {
 
   try {
     // Get fb_dtsg + lsd from business.facebook.com
-    const bRes = await fetch("https://business.facebook.com/", fbFetchOpts(cookieHeader));
-    const bHtml = await bRes.text();
-    const fb_dtsg = extractFbDtsg(bHtml);
-    const lsd = extractLsd(bHtml);
+    const bSession = await getSession(cookieHeader, "https://business.facebook.com/", 20000, proxy);
+    const fb_dtsg = bSession?.dtsg;
+    const lsd = bSession?.lsd || "";
 
     if (!fb_dtsg) {
-      return res.json({ ok: false, reason: "تعذّر استخراج fb_dtsg — تحقق من الكوكيز" });
+      return res.json({ ok: false, reason: "تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف" });
     }
 
     const payload = new URLSearchParams({
@@ -372,18 +367,12 @@ router.post("/boost-ad", async (req, res) => {
   }
 
   // Step 1: Extract fb_dtsg from www.facebook.com
-  let fb_dtsg = "", lsd = "";
-  try {
-    const r1 = await fetch("https://www.facebook.com/", fbFetchOpts(cookieHeader));
-    const h1 = await r1.text();
-    fb_dtsg = extractFbDtsg(h1) || "";
-    lsd = extractLsd(h1) || "";
-  } catch (e) {
-    return res.json({ ok: false, reason: `فشل الاتصال بـ Facebook: ${e.message.slice(0, 80)}` });
-  }
+  const adSession = await getSession(cookieHeader, "https://www.facebook.com/", 20000, proxy);
+  const fb_dtsg = adSession?.dtsg || "";
+  let lsd = adSession?.lsd || "";
 
   if (!fb_dtsg) {
-    return res.json({ ok: false, reason: "تعذّر استخراج fb_dtsg — تحقق من الكوكيز" });
+    return res.json({ ok: false, reason: "تعذّر استخراج fb_dtsg — الكوكيز منتهية أو الحساب موقوف" });
   }
 
   // Step 2: Extract lsd from business.facebook.com if not found
