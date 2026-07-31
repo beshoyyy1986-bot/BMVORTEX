@@ -112,8 +112,8 @@ export default function MiniMeta2Modal({ onClose }) {
     createAd: isAr ? "إنشاء الإعلان" : "Create Ad",
     back: isAr ? "→ رجوع" : "← Back",
     autoInfo: isAr
-      ? "الأداة ستختار كارت عشوائياً من المصدر وتربطه تلقائياً"
-      : "The tool will pick a random card from source and link it automatically",
+      ? "سيتم جلب البطاقات من المصدر وربطها تلقائياً"
+      : "Cards will be fetched from the source and linked automatically",
     cardsNote: isAr
       ? "فيسبوك يحمي صفحة الفواتير — قد تحتاج للتحقق يدوياً"
       : "Facebook protects billing pages — manual verification may be needed",

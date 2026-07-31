@@ -124,8 +124,184 @@ router.post("/add-cards", async (req, res) => {
 
   const results = [];
 
+  // ── Flexible card parser ──────────────────────────────────────────────────
+  // Accepts ANY separator (| : ; , / space tab) and ANY date format.
+  // Strips names, generates random names automatically.
+  // Never rejects format — best-effort extraction.
+  const NAMES = [
+    "Ahmed", "Mohammed", "Ali", "Omar", "Hassan", "Khaled", "Youssef",
+    "Mahmoud", "Mostafa", "Ibrahim", "John", "James", "David", "Michael",
+    "Sarah", "Emily", "Emma", "Sophia", "Olivia", "Liam", "Noah", "Ethan",
+  ];
+  function randomName() { return NAMES[Math.floor(Math.random() * NAMES.length)] + " " + NAMES[Math.floor(Math.random() * NAMES.length)]; }
+
+  function parseCard(raw) {
+    // Split by any common delimiter
+    const tokens = raw
+      .split(/[|:;,/\t\n\r ]+/)
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    let cardNum = null, mm = null, year = null, cvv = null;
+
+    // Find card number: 15-19 consecutive digits (maybe with spaces/hyphens already removed by split)
+    for (const t of tokens) {
+      const digits = t.replace(/\D/g, '');
+      if (digits.length >= 14 && digits.length <= 19) {
+        cardNum = digits;
+        break;
+      }
+    }
+
+    // Find CVV: 3-4 digits, not starting with 0, not a year-like number
+    for (const t of tokens) {
+      const digits = t.replace(/\D/g, '');
+      if (digits.length === 3 || digits.length === 4) {
+        const n = parseInt(digits);
+        if (n >= 1 && n <= 9999 && !(n >= 25 && n <= 99)) {
+          cvv = digits;
+          break;
+        }
+      }
+    }
+
+    // Find date tokens: could be MM/YY, MM/YYYY, or separate MM and YYYY
+    // First try to find a token that looks like a date (contains digits and / or -)
+    for (const t of tokens) {
+      const mmyy = t.match(/^(\d{1,2})\s*[\/\-]\s*(\d{2,4})$/);
+      if (mmyy) {
+        const m = parseInt(mmyy[1]);
+        if (m >= 1 && m <= 12) {
+          mm = m;
+          year = normalizeYear(parseInt(mmyy[2]));
+          break;
+        }
+      }
+    }
+
+    // If no combined date, look for separate MM and YYYY/YY tokens
+    if (!mm) {
+      for (const t of tokens) {
+        const digits = t.replace(/\D/g, '');
+        if (!digits) continue;
+        const n = parseInt(digits);
+        // Month: 1-12
+        if (n >= 1 && n <= 12 && digits.length <= 2 && t === digits) {
+          mm = n;
+          break;
+        }
+      }
+    }
+    if (!year) {
+      for (const t of tokens) {
+        const digits = t.replace(/\D/g, '');
+        if (!digits) continue;
+        const n = parseInt(digits);
+        // Year: 2 digits (25-99) or 4 digits (2025-2099 or 1925-1999)
+        if (digits.length === 2 && n >= 25 && n <= 99) {
+          year = normalizeYear(n);
+          break;
+        }
+        if (digits.length === 4 && n >= 1925 && n <= 2099) {
+          year = n;
+          break;
+        }
+      }
+    }
+
+    // Fallback defaults if we got a card but couldn't parse everything
+    if (cardNum) {
+      if (!mm) mm = 12;
+      if (!year) year = new Date().getFullYear() + 3;
+      if (!cvv) cvv = "123";
+    }
+
+    return { cardNum, mm, year, cvv };
+  }
+
+  function normalizeYear(y) {
+    if (y >= 100) return y;
+    return 2000 + y;
+  }
+
+  function masked(cardNum) {
+    if (!cardNum) return "????";
+    return cardNum.slice(0, 6) + "****" + cardNum.slice(-4);
+  }
+
+  function addCard(cardNum, mm, year, cvv) {
+    const m = masked(cardNum);
+    return addCardParsed({ cardNum, mm, year, cvv }, m);
+  }
+
+  async function addCardParsed(parsed, label) {
+    if (!parsed.cardNum) {
+      return { card: label, status: "❌ لم يتم العثور على رقم بطاقة" };
+    }
+    try {
+      const payload = new URLSearchParams({
+        fb_dtsg,
+        lsd,
+        doc_id: "6423087354383438",
+        variables: JSON.stringify({
+          input: {
+            act_id: actId,
+            card_number: parsed.cardNum,
+            expiration_month: parsed.mm,
+            expiration_year: parsed.year,
+            cvv: parsed.cvv,
+            name_on_card: randomName(),
+          },
+        }),
+      });
+
+      const r = await fetch("https://www.facebook.com/api/graphql/", {
+        method: "POST",
+        headers: {
+          "Cookie": cookieHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "X-FB-LSD": lsd,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+        body: payload.toString(),
+      });
+
+      const txt = await r.text();
+      const hasErr = /error|خطأ|invalid|declined/i.test(txt);
+      const hasOk = /success|added|payment_method_id/i.test(txt);
+
+      if (hasOk && !hasErr) {
+        return { card: label, status: "✅ تم الربط بنجاح" };
+      } else if (hasErr) {
+        return { card: label, status: "❌ رُفضت البطاقة" };
+      } else {
+        return { card: label, status: "⚠️ تحقق يدوياً" };
+      }
+    } catch (e) {
+      return { card: label, status: `❌ فشل: ${e.message.slice(0, 60)}` };
+    }
+  }
+
   if (mode === "auto") {
-    results.push({ card: "تلقائي", status: "⚠️ الربط التلقائي يتطلب مصدر كروت — تواصل مع الدعم" });
+    // Fetch cards from gist source
+    const gistUrl = "https://gist.githubusercontent.com/beshoyyy1986-bot/a686984181054e00c1a85774e29d4d68/raw/6475acd350623c5b9de0350efb4093e8b8890311/cards";
+    try {
+      const resp = await fetch(gistUrl);
+      const text = await resp.text();
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+      if (!lines.length) {
+        results.push({ card: "تلقائي", status: "❌ المصدر لا يحتوي على بطاقات" });
+      } else {
+        for (const line of lines) {
+          const parsed = parseCard(line);
+          const res = await addCardParsed(parsed, masked(parsed.cardNum));
+          results.push(res);
+        }
+      }
+    } catch (e) {
+      results.push({ card: "تلقائي", status: `❌ فشل تحميل المصدر: ${e.message.slice(0, 60)}` });
+    }
   } else {
     const lines = (cards_text || "")
       .split("\n")
@@ -135,57 +311,9 @@ router.post("/add-cards", async (req, res) => {
     if (!lines.length) return res.json({ ok: false, reason: "لا توجد بطاقات" });
 
     for (const line of lines) {
-      const parts = line.split("|");
-      const [cardNum, mm, yyyy, cvv] = parts;
-      const masked = cardNum ? cardNum.slice(0, 6) + "****" + cardNum.slice(-4) : line;
-
-      if (!cardNum || !mm || !yyyy || !cvv) {
-        results.push({ card: masked, status: "❌ تنسيق غير صالح (card|mm|yyyy|cvv)" });
-        continue;
-      }
-
-      try {
-        // GraphQL mutation to add payment method
-        const payload = new URLSearchParams({
-          fb_dtsg,
-          lsd,
-          doc_id: "6423087354383438",
-          variables: JSON.stringify({
-            input: {
-              act_id: actId,
-              card_number: cardNum,
-              expiration_month: parseInt(mm),
-              expiration_year: parseInt(yyyy),
-              cvv,
-            },
-          }),
-        });
-
-        const r = await fetch("https://www.facebook.com/api/graphql/", {
-          method: "POST",
-          headers: {
-            "Cookie": cookieHeader,
-            "Content-Type": "application/x-www-form-urlencoded",
-            "X-FB-LSD": lsd,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          },
-          body: payload.toString(),
-        });
-
-        const txt = await r.text();
-        const hasErr = /error|خطأ|invalid|declined/i.test(txt);
-        const hasOk = /success|added|payment_method_id/i.test(txt);
-
-        if (hasOk && !hasErr) {
-          results.push({ card: masked, status: "✅ تم الربط بنجاح" });
-        } else if (hasErr) {
-          results.push({ card: masked, status: "❌ رُفضت البطاقة" });
-        } else {
-          results.push({ card: masked, status: "⚠️ تحقق يدوياً" });
-        }
-      } catch (e) {
-        results.push({ card: masked, status: `❌ فشل: ${e.message.slice(0, 60)}` });
-      }
+      const parsed = parseCard(line);
+      const res = await addCardParsed(parsed, masked(parsed.cardNum));
+      results.push(res);
     }
   }
 
