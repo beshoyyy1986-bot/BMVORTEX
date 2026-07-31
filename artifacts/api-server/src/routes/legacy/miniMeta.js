@@ -111,6 +111,8 @@ router.post("/add-cards", async (req, res) => {
   const session = await getSession(cookieHeader, "https://www.facebook.com/", 20000, proxy);
   const fb_dtsg = session?.dtsg || "";
   const lsd = session?.lsd || "";
+  const userId = session?.userId || "";
+  const origin = session?.origin || "https://www.facebook.com";
 
   if (!fb_dtsg) {
     return res.json({
@@ -239,41 +241,73 @@ router.post("/add-cards", async (req, res) => {
       return { card: label, status: "❌ لم يتم العثور على رقم بطاقة" };
     }
     try {
+      const flowId = `upl_${Math.floor(Date.now() / 1000)}_${Math.random().toString(36).slice(2, 11)}`;
+      const vars = {
+        input: {
+          payment_legacy_account_id: `act_${actId}`,
+          billing_credential: {
+            card: {
+              card_number: parsed.cardNum,
+              expiration_month: parsed.mm,
+              expiration_year: parsed.year,
+              cvv: parsed.cvv,
+              zip_code: null,
+            },
+          },
+          upl_logging_data: {
+            context: "billingaddpm",
+            credential_type: "CREDIT_CARD",
+            entry_point: "ADS_MANAGER_BILLING",
+            external_flow_id: flowId,
+            target_name: "AddSharedBizCreditCardMutation",
+            user_session_id: flowId,
+            wizard_config_name: "ADD_CREDIT_CARD",
+            wizard_name: "ADD_PM_PUX_EP",
+            wizard_session_id: `upl_wizard_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+          },
+          actor_id: userId,
+          client_mutation_id: Math.floor(Math.random() * 100).toString(),
+        },
+      };
+
       const payload = new URLSearchParams({
         fb_dtsg,
         lsd,
         doc_id: "6423087354383438",
-        variables: JSON.stringify({
-          input: {
-            act_id: actId,
-            card_number: parsed.cardNum,
-            expiration_month: parsed.mm,
-            expiration_year: parsed.year,
-            cvv: parsed.cvv,
-            name_on_card: randomName(),
-          },
-        }),
+        fb_api_req_friendly_name: "AddSharedBizCreditCardMutation",
+        fb_api_caller_class: "RelayModern",
+        variables: JSON.stringify(vars),
+        __user: userId,
+        av: userId,
+        server_timestamps: "true",
       });
 
-      const r = await fetch("https://www.facebook.com/api/graphql/", {
+      const r = await fetch(`${origin}/api/graphql/`, {
         method: "POST",
         headers: {
           "Cookie": cookieHeader,
           "Content-Type": "application/x-www-form-urlencoded",
           "X-FB-LSD": lsd,
+          "X-FB-Friendly-Name": "AddSharedBizCreditCardMutation",
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Sec-Fetch-Site": "same-origin",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Dest": "empty",
         },
         body: payload.toString(),
       });
 
       const txt = await r.text();
-      const hasErr = /error|خطأ|invalid|declined/i.test(txt);
-      const hasOk = /success|added|payment_method_id/i.test(txt);
+      const hasErr = /"error"|error|خطأ|invalid|declined/i.test(txt);
+      const hasOk = /success|added|payment_method_id|billing_credential_id/i.test(txt);
 
       if (hasOk && !hasErr) {
         return { card: label, status: "✅ تم الربط بنجاح" };
       } else if (hasErr) {
-        return { card: label, status: "❌ رُفضت البطاقة" };
+        // Extract actual error message from response if possible
+        const errMatch = txt.match(/"message"\s*:\s*"([^"]+)"/);
+        const errMsg = errMatch ? errMatch[1].slice(0, 120) : "رُفضت البطاقة";
+        return { card: label, status: `❌ ${errMsg}` };
       } else {
         return { card: label, status: "⚠️ تحقق يدوياً" };
       }
