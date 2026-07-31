@@ -135,7 +135,7 @@ function CreateBmTool({ cookies }) {
         <label style={labelCls}>◈ عدد الـ BM (max 5)</label>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
           <input type="number" min={1} max={5} value={count} onChange={e => setCount(e.target.value)} style={{ ...inputCls, width:60 }} disabled={running} />
-          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 5</span>
+          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>افتراضي 5 · max 5</span>
         </div>
       </div>
 
@@ -181,7 +181,7 @@ CreateBmTool.propTypes = { cookies: PropTypes.string };
 
 // ── Sub-tool: CREATE AD ACC ────────────────────────────────────────────────
 function CreateAdAccTool({ cookies }) {
-  const [count, setCount]     = useState(5);
+  const [count, setCount]     = useState(3);
   const [currency, setCurrency] = useState('USD');
   const [bmId, setBmId]       = useState('');
   const [running, setRunning] = useState(false);
@@ -197,7 +197,7 @@ function CreateAdAccTool({ cookies }) {
 
   async function handleRun() {
     if (!cookies.trim()) return setResult({ type:'error', msg:'أدخل الكوكيز أولاً في الحقل المشترك ↑' });
-    const n = Math.min(parseInt(count) || 5, 10);
+    const n = Math.min(parseInt(count) || 3, 10);
     stopRef.current = false;
     setRunning(true); setProgress(0); setLogs([]); setResult({ type:'info', msg:`⟳ إنشاء ${n} Ad Accounts...` });
     let ok = 0; const results = [];
@@ -242,7 +242,7 @@ function CreateAdAccTool({ cookies }) {
         <label style={labelCls}>◈ عدد الحسابات (max 10)</label>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
           <input type="number" min={1} max={10} value={count} onChange={e => setCount(e.target.value)} style={{ ...inputCls, width:60 }} disabled={running} />
-          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>max 10</span>
+          <span style={{ fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>افتراضي 3 · max 10</span>
         </div>
       </div>
 
@@ -316,7 +316,8 @@ function AddInfoPanel({ cookies, onClose }) {
         body: JSON.stringify({ cookies, bm_id: bmId.trim() }),
       }).then(x => x.json());
       setProgress(50);
-      if (r1.ok) addLog('✓ Picture uploaded', 'success');
+      const picOk = !!r1.ok;
+      if (picOk) addLog('✓ Picture uploaded', 'success');
       else addLog(`⚠ Picture: ${r1.reason || 'Server rejected'}`, 'warn');
 
       setResult({ type:'info', msg:'⟳ Step 2/2: Updating business details...' });
@@ -330,7 +331,10 @@ function AddInfoPanel({ cookies, onClose }) {
 
       if (r2.ok) {
         addLog('✓ Business details updated', 'success');
-        setResult({ type:'success', msg:'✓ تم!\n✓ صورة البيزنس\n✓ البيانات والضرائب' });
+        setResult({
+          type: picOk ? 'success' : 'warn',
+          msg: `${picOk ? '✓ تم!' : '⚠ تم جزئياً'}\n${picOk ? '✓' : '✗'} صورة البيزنس\n✓ البيانات والضرائب`,
+        });
       } else {
         addLog(`✗ ${r2.reason || 'Error'}`, 'error');
         setResult({ type:'error', msg:`✗ فشل: ${r2.reason || 'Error'}` });
@@ -354,7 +358,7 @@ function AddInfoPanel({ cookies, onClose }) {
         🏢 <span style={{ color:C.cyan }}>Name:</span> CONSELHO ESCOLAR VICE<br />
         📍 <span style={{ color:C.cyan }}>City:</span> Guarani, Goiás, BR<br />
         🪪 <span style={{ color:C.cyan }}>Tax ID:</span> 00658805000127<br />
-        🖼️ <span style={{ color:C.cyan }}>Photo:</span> Business profile image
+        🖼️ <span style={{ color:C.cyan }}>Photo:</span> صورة عشوائية من 5 صور
       </div>
 
       <div>
@@ -398,14 +402,16 @@ export default function BmCreatorModal({ onClose }) {
       `}</style>
 
       {/* ── Header ── */}
-      <header style={{ background:`linear-gradient(135deg,#131313 0%,#1a1a1a 50%,#141414 100%)`, borderBottom:`1px solid ${C.border}`, padding:'12px 18px', flexShrink:0, boxShadow:`0 1px 20px rgba(245,158,11,0.08)` }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      {/* Height is pinned so the enlarged logo below can overflow its padding
+          box without making the header any taller than it was. */}
+      <header style={{ background:`linear-gradient(135deg,#131313 0%,#1a1a1a 50%,#141414 100%)`, borderBottom:`1px solid ${C.border}`, padding:'12px 18px', height:76, boxSizing:'border-box', display:'flex', alignItems:'center', flexShrink:0, boxShadow:`0 1px 20px rgba(245,158,11,0.08)` }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'5px 12px', color:C.textSub, fontSize:12.5, cursor:'pointer' }}>→ رجوع</button>
+            <button onClick={onClose} style={{ background:C.input, border:`1px solid ${C.border}`, borderRadius:7, padding:'5px 12px', color:C.textSub, fontSize:12.5, cursor:'pointer', flexShrink:0 }}>→ رجوع</button>
             <img
               src="/meta_cards_from_bm.png"
               alt="Create BM & Ad Acc"
-              style={{ width:52, height:52, objectFit:'contain', borderRadius:10, filter:'drop-shadow(0 0 10px rgba(245,158,11,0.45))' }}
+              style={{ width:72, height:72, flexShrink:0, objectFit:'contain', borderRadius:12, margin:'-10px 0', filter:'drop-shadow(0 0 12px rgba(245,158,11,0.5))' }}
             />
             <div>
               <div style={{ fontSize:14, fontWeight:800, letterSpacing:'.3px', background:`linear-gradient(90deg,${C.gold},#fcd34d)`, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>

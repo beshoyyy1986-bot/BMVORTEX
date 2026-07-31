@@ -37,7 +37,7 @@ const mainCards = [
   { title: "Meta Ads One Way",      type: "meta_ads_one_way",  logo: "/meta_ads_one_way.png" },
   { title: "Mini Meta 2$",          type: "mini_meta_2",       logo: "/mini-meta-2$/logo.png" },
   { title: "CC FROM BM",            type: "cc_from_bm",        logo: "/meta_cards_from_bm.png" },
-  { title: "CREATE BM & AD ACC",   type: "bm_creator",        logo: "/meta_cards_from_bm.png" },
+  { title: "CREATE BM & AD ACC & INFO", type: "bm_creator",   logo: "/meta_cards_from_bm.png" },
   { title: "Vortex CC Tools",       type: "cc_tools",          logo: "/cc_tools_logo.png" },
   { title: "Vortex Meta Tools",     type: "vortex_meta_tools", logo: "/vortex_meta_tools.png", free: true },
   { title: "Remove Payment",        type: "remove_payment",    logo: "/remove_payment.png" },
@@ -1315,14 +1315,17 @@ export default function SecureDashboardApp() {
                       </span>
                     )}
                   </span>
-                  <h3 className={`w-full text-sm font-bold leading-snug ${
-                    isDark ? "text-slate-100" : "text-slate-800"
+                  {/* Fixed-height name band. The height is pinned so the
+                      lock overlay can stop exactly above it — the tool name
+                      stays readable even while the card is locked. */}
+                  <h3 className={`relative z-30 mt-auto flex h-[44px] w-full items-center justify-center break-words border-t px-1 text-[13px] font-black leading-tight tracking-tight ${
+                    isDark ? "border-white/10 text-white" : "border-slate-200 text-slate-900"
                   }`}>
                     {cardTitle}
                   </h3>
 
                   {!unlocked && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2.5
+                    <div className="absolute inset-x-0 top-0 bottom-[60px] z-20 flex flex-col items-center justify-center gap-2.5
                                     bg-black/55 backdrop-blur-[3px]">
                       {/* Gold coin badge — a raised disc reads as "premium",
                           where the old flat outline just read as "broken". */}
