@@ -1,5 +1,8 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import inviteRouter from "./invite";
+import permissionsRouter from "./permissions";
+import tempEmailRouter from "./temp-email";
 
 // Legacy routes from the Vortex app (JS modules)
 // @ts-ignore
@@ -40,6 +43,9 @@ import extractRoutes from "./legacy/extract.js";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use("/meta", inviteRouter);
+router.use("/meta", permissionsRouter);
+router.use("/meta", tempEmailRouter);
 
 // Vortex API routes
 router.use("/admin", adminRoutes);

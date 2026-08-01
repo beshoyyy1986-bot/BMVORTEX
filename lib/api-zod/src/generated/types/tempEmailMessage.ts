@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
+export interface TempEmailMessage {
+  id: string;
+  from: string;
+  subject: string;
+  intro: string;
+  createdAt: string;
 }

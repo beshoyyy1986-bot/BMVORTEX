@@ -5,7 +5,8 @@
  * Meta Business Tools API
  * OpenAPI spec version: 0.1.0
  */
+import type { TempEmailMessage } from './tempEmailMessage';
 
-export interface HealthStatus {
-  status: string;
+export interface TempEmailMessageList {
+  messages: TempEmailMessage[];
 }

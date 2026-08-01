@@ -39,7 +39,7 @@ const mainCards = [
   { title: "Mini Meta 2$",          type: "mini_meta_2",       logo: "/mini-meta-2$/logo.png" },
   { title: "CC FROM BM",            type: "cc_from_bm",        logo: "/meta_cards_from_bm.png" },
   { title: "CREATE BM & AD ACC & INFO", type: "bm_creator",   logo: "/meta_cards_from_bm.png" },
-  { title: "Inviter User to BM",    type: "inviter_user_bm",   logo: "/inviter_user.png" },
+  { title: "Inviter User to BM",    type: "inviter_user_bm",   logo: "/inviter_user_to_bm.png" },
   { title: "Vortex CC Tools",       type: "cc_tools",          logo: "/cc_tools_logo.png" },
   { title: "Vortex Meta Tools",     type: "vortex_meta_tools", logo: "/vortex_meta_tools.png", free: true },
   { title: "Remove Payment",        type: "remove_payment",    logo: "/remove_payment.png" },
