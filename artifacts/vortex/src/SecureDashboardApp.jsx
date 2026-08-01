@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import PropTypes from "prop-types";
 import { AnimatePresence, motion } from "framer-motion";
 import { supabase } from "./lib/supabaseClient";
+import { ALL_TOOL_TYPES } from "./lib/tools.js";
 import { useLang } from "./i18n.jsx";
 import PasswordInput from "./components/PasswordInput.jsx";
 
@@ -68,7 +69,7 @@ const planAccess = {
   none:       [],
   basic:      ["funds"],
   pro:        ["funds", "ads", "support"],
-  enterprise: mainCards.map(c => c.type),
+  enterprise: ALL_TOOL_TYPES,
 };
 
 // ── Loading fallback for lazy chunks ──────────────────────────────
@@ -1083,7 +1084,7 @@ export default function SecureDashboardApp() {
     return (
       <div className="min-h-screen w-full overflow-auto bg-[#0a0c10] p-4">
         <Suspense fallback={<ChunkFallback />}>
-          <AdminPanel onClose={() => navigateTo("/")} />
+          <AdminPanel onClose={() => navigateTo("/")} isOwner={userInfo.role === "owner"} />
         </Suspense>
       </div>
     );

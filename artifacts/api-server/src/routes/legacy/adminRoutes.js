@@ -6,10 +6,14 @@ const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const OWNER_EMAIL = 'beshoyyy1986@gmail.com';
+// Must stay in sync with artifacts/vortex/src/lib/tools.js — the client
+// renders a card per type, this list decides what an admin may grant.
 const ALL_TOOL_TYPES = [
-  'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
-  'paypal', 'gateway', 'iban', 'methods', 'debug',
-  'generator', 'checker', 'email', 'social', 'proxy', 'support',
+  'bm_meta_tool', 'meta_ads_one_way', 'mini_meta_2', 'cc_from_bm',
+  'bm_creator', 'inviter_user_bm', 'cc_tools', 'vortex_meta_tools',
+  'remove_payment', 'add_funds_meta', 'add_primary_cc', 'switch_bm_old',
+  'funds', 'ads', 'cards', 'paypal', 'gateway', 'iban', 'methods',
+  'debug', 'generator', 'checker', 'email', 'social', 'proxy', 'support',
 ];
 
 const PLAN_DEFAULTS = {
@@ -65,6 +69,7 @@ async function requireAdmin(req, res, next) {
       return res.status(403).json({ ok: false, error: 'Admin access required' });
     }
     req.adminUser = user;
+    req.adminRole = profile.role;
     next();
   } catch (err) {
     return res.status(401).json({ ok: false, error: err.message });
@@ -314,9 +319,19 @@ router.patch('/settings', async (req, res) => {
 // ── POST /api/admin/create-user ───────────────────────────────────────────────
 router.post('/create-user', async (req, res) => {
   try {
-    const { email, password, role = 'admin', plan = 'basic' } = req.body;
+    const { email, password, role = 'user', plan = 'basic' } = req.body;
     if (!email || !password)
       return res.status(400).json({ ok: false, error: 'email and password are required' });
+
+    if (!['user', 'admin'].includes(role))
+      return res.status(400).json({ ok: false, error: 'role must be "user" or "admin"' });
+
+    // Only the owner may mint privileged accounts. Without this an admin
+    // could create further admins and the owner would lose control of who
+    // holds the role.
+    if (role === 'admin' && req.adminRole !== 'owner')
+      return res.status(403).json({ ok: false, error: 'Only the owner can create admins' });
+
     const adminClient = getAdminClient();
     const fallbackUsername = (email.split('@')[0] || 'user').toLowerCase();
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({

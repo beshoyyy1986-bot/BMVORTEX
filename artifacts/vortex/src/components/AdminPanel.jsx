@@ -1,29 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PasswordInput from './PasswordInput.jsx';
 import { useLang } from '../i18n.jsx';
 import { supabase } from '../lib/supabaseClient.js';
+import { ALL_TOOL_TYPES, TOOL_LABELS, PLAN_DEFAULTS } from '../lib/tools.js';
 
-const ALL_TOOL_TYPES = [
-  'bm_meta_tool', 'mini_meta_2', 'funds', 'ads', 'cards',
-  'paypal', 'gateway', 'iban', 'methods', 'debug',
-  'generator', 'checker', 'email', 'social', 'proxy', 'support',
-];
+// A user is treated as online when their heartbeat landed within this window.
+// SecureDashboardApp polls on a shorter interval, so one missed beat is fine.
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 
-const TOOL_LABELS = {
-  bm_meta_tool: 'BM Meta', mini_meta_2: 'Mini Meta 2$', funds: 'Funds',
-  ads: 'Ads', cards: 'Cards', paypal: 'PayPal',
-  gateway: 'Gateway', iban: 'IBAN', methods: 'Methods',
-  debug: 'Debug', generator: 'CC Gen', checker: 'CC Check',
-  email: 'Email', social: 'Social', proxy: 'Proxy',
-  support: 'Support',
-};
-
-const PLAN_DEFAULTS = {
-  none:       [],
-  basic:      ['funds'],
-  pro:        ['funds', 'ads', 'support'],
-  enterprise: ALL_TOOL_TYPES,
-};
+function formatLastSeen(iso) {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const diff = Date.now() - then;
+  if (diff < ONLINE_WINDOW_MS) return { online: true, text: 'online now' };
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return { online: false, text: `${mins}m ago` };
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return { online: false, text: `${hours}h ago` };
+  const days = Math.floor(hours / 24);
+  if (days < 30) return { online: false, text: `${days}d ago` };
+  return { online: false, text: new Date(iso).toLocaleDateString() };
+}
 
 const PLAN_COLORS = {
   enterprise: 'text-amber-400 bg-amber-400/10 border-amber-400/25',
@@ -128,6 +126,120 @@ const api = {
   },
 };
 
+// ── Tool permission picker (dropdown multi-select) ─────────────────────────
+function ToolPicker({ selected, onChange, onToggle }) {
+  const [open, setOpen]     = useState(false);
+  const [filter, setFilter] = useState('');
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
+    };
+    const onEsc = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open]);
+
+  const q = filter.trim().toLowerCase();
+  const visible = q
+    ? ALL_TOOL_TYPES.filter(type =>
+        (TOOL_LABELS[type] ?? type).toLowerCase().includes(q) || type.includes(q))
+    : ALL_TOOL_TYPES;
+
+  return (
+    <div className="mb-3" ref={boxRef}>
+      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        Tool Permissions ({selected.length}/{ALL_TOOL_TYPES.length})
+      </label>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="flex w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-sm text-slate-200 hover:border-white/20 transition-colors"
+        >
+          <span className={selected.length ? 'text-slate-200' : 'text-slate-500'}>
+            {selected.length === 0
+              ? 'No tools selected'
+              : selected.length === ALL_TOOL_TYPES.length
+                ? 'All tools'
+                : `${selected.length} tool${selected.length > 1 ? 's' : ''} selected`}
+          </span>
+          <span className="text-slate-500 text-xs">{open ? '▲' : '▼'}</span>
+        </button>
+
+        {open && (
+          <div className="absolute z-30 mt-1 w-full rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
+            <div className="flex items-center gap-1.5 border-b border-white/10 p-2">
+              <input
+                autoFocus
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                placeholder="Search tools…"
+                className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-slate-200 placeholder-slate-600 focus:border-white/25 focus:outline-none"
+              />
+              <button type="button" onClick={() => onChange(ALL_TOOL_TYPES)}
+                className="shrink-0 rounded-lg border border-green-500/20 bg-green-500/8 px-2 py-1 text-[10px] font-bold text-green-400 hover:bg-green-500/15">
+                All
+              </button>
+              <button type="button" onClick={() => onChange([])}
+                className="shrink-0 rounded-lg border border-slate-500/20 bg-slate-500/8 px-2 py-1 text-[10px] font-bold text-slate-400 hover:bg-slate-500/15">
+                None
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto p-1">
+              {visible.length === 0 ? (
+                <div className="px-2 py-3 text-center text-xs text-slate-600">No match</div>
+              ) : visible.map(type => {
+                const active = selected.includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => onToggle(type)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+                      active ? 'text-green-400 hover:bg-green-500/10' : 'text-slate-400 hover:bg-white/5'
+                    }`}
+                  >
+                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
+                      active ? 'border-green-500/40 bg-green-500/20' : 'border-white/15'
+                    }`}>
+                      {active ? '✓' : ''}
+                    </span>
+                    <span className="truncate font-semibold">{TOOL_LABELS[type] ?? type}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {selected.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {selected.map(type => (
+            <span key={type}
+              className="inline-flex items-center gap-1 rounded-lg border border-green-500/25 bg-green-500/10 px-2 py-0.5 text-[10px] font-semibold text-green-400">
+              {TOOL_LABELS[type] ?? type}
+              <button type="button" onClick={() => onToggle(type)}
+                className="text-green-500/70 hover:text-green-300" aria-label={`Remove ${TOOL_LABELS[type] ?? type}`}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── User row (expanded card) ───────────────────────────────────────────────
 function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
   const { t } = useLang();
@@ -146,6 +258,7 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
   }, [user.allowed_types, user.subscription_expires_at]);
 
   const expired = user.subscription_expires_at && new Date(user.subscription_expires_at) < new Date();
+  const seen = formatLastSeen(user.last_seen_at);
 
   async function act(fn, successMsg) {
     setSaving(true);
@@ -276,9 +389,10 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
                 expires {new Date(user.subscription_expires_at).toLocaleDateString()}
               </span>
             )}
-            {user.last_seen_at && (
-              <span className="text-slate-500">
-                last seen {new Date(user.last_seen_at).toLocaleString()}
+            {seen && (
+              <span className={seen.online ? 'flex items-center gap-1 font-semibold text-green-400' : 'text-slate-500'}>
+                {seen.online && <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />}
+                {seen.online ? 'online now' : `last seen ${seen.text}`}
               </span>
             )}
             <span className="text-slate-600">
@@ -388,44 +502,17 @@ function UserCard({ user, onUpdate, onDelete, onRefresh, showToast }) {
           </div>
 
           {/* Tool permissions */}
-          <div>
-            <div className="mb-2 flex items-center justify-between">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Tool Permissions ({localTools.length}/{ALL_TOOL_TYPES.length})
-              </label>
-              <div className="flex items-center gap-1.5">
-                <button onClick={() => setLocalTools(ALL_TOOL_TYPES)}
-                  className="rounded-lg border border-green-500/20 bg-green-500/8 px-2 py-0.5 text-[10px] text-green-400 hover:bg-green-500/15">
-                  All
-                </button>
-                <button onClick={() => setLocalTools([])}
-                  className="rounded-lg border border-slate-500/20 bg-slate-500/8 px-2 py-0.5 text-[10px] text-slate-400 hover:bg-slate-500/15">
-                  None
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {ALL_TOOL_TYPES.map(type => {
-                const active = localTools.includes(type);
-                return (
-                  <button key={type} onClick={() => toggleTool(type)}
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
-                      active
-                        ? 'border-green-500/35 bg-green-500/15 text-green-400'
-                        : 'border-white/8 bg-white/[0.03] text-slate-500 hover:border-white/15 hover:text-slate-400'
-                    }`}>
-                    {TOOL_LABELS[type] ?? type}
-                  </button>
-                );
-              })}
-            </div>
-            {toolsDirty && (
-              <button onClick={handleSaveTools} disabled={saving}
-                className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 transition-colors">
-                {saving ? '↻ Saving…' : '💾 Save Tool Changes'}
-              </button>
-            )}
-          </div>
+          <ToolPicker
+            selected={localTools}
+            onChange={setLocalTools}
+            onToggle={toggleTool}
+          />
+          {toolsDirty && (
+            <button onClick={handleSaveTools} disabled={saving}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-500 disabled:opacity-50 transition-colors">
+              {saving ? '↻ Saving…' : '💾 Save Tool Changes'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -628,7 +715,7 @@ function SiteSettingsTab({ showToast }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-const AdminPanel = ({ onClose }) => {
+const AdminPanel = ({ onClose, isOwner = false }) => {
   const { t } = useLang();
   const [users,      setUsers]     = useState([]);
   const [tickets,    setTickets]   = useState([]);
@@ -734,7 +821,8 @@ const AdminPanel = ({ onClose }) => {
   const tabs = [
     { key: 'users',        label: '👥 Users',        count: users.length },
     { key: 'tickets',      label: '🎫 Tickets',       count: tickets.length },
-    { key: 'create-admin', label: '➕ New Admin',     count: null },
+    // Minting admins is an owner-only power; the server enforces it too.
+    ...(isOwner ? [{ key: 'create-admin', label: '➕ New Admin', count: null }] : []),
     { key: 'site',         label: '🐾 Site',          count: null },
   ];
 
@@ -897,7 +985,7 @@ const AdminPanel = ({ onClose }) => {
         )}
 
         {/* ── Create admin tab ── */}
-        {activeTab === 'create-admin' && (
+        {activeTab === 'create-admin' && isOwner && (
           <div className="mx-auto max-w-lg">
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
               <div className="mb-5 flex items-center gap-3">

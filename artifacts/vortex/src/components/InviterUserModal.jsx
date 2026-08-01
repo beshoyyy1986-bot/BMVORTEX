@@ -1,403 +1,431 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { motion } from "framer-motion";
-import { useLang } from "../i18n.jsx";
-import {
-  useCreateTempEmail,
-  useSendInvite,
-  useGetTempEmailMessages,
-  useExtractInviteLink,
-  useGrantPermissions,
-} from "@workspace/api-client-react";
 import CookieInput from "./CookieInput";
 
+const C = {
+  panel:    '#171c25',
+  input:    '#232a38',
+  border:   '#3d4757',
+  blue:     '#3b82f6',
+  purple:   '#a855f7',
+  green:    '#22c55e',
+  red:      '#ef4444',
+  text:     '#eef2f8',
+  textSub:  '#c3cddd',
+  textMuted:'#99a5ba',
+};
+
+const ADMIN_TASKS = [
+  "MANAGE", "CREATE_CONTENT", "BASIC_CARDS", "MESSAGE",
+  "EDIT_PROFILE", "ANALYZE", "MODERATE", "ADVERTISE",
+  "CASHIER_ROLE", "VIEW_COST", "MANAGE_LEADS", "PUBLISH_CONTENT",
+];
+
+const POLL_INTERVAL_MS = 5000;
+
+async function postJson(url, body) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+  return data;
+}
+
+async function getJson(url) {
+  const r = await fetch(url);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `Request failed (${r.status})`);
+  return data;
+}
+
+function Panel({ title, accent, children }) {
+  return (
+    <div style={{
+      background: C.panel, border: `1px solid ${C.border}`, borderRadius: 12,
+      padding: 16, display: 'flex', flexDirection: 'column', gap: 12,
+    }}>
+      <h3 style={{
+        margin: 0, fontSize: 13, fontWeight: 800, color: accent,
+        textTransform: 'uppercase', letterSpacing: '.06em',
+        display: 'flex', alignItems: 'center', gap: 7,
+      }}>
+        <span style={{ display: 'inline-block', width: 3, height: 12, background: accent, borderRadius: 2 }} />
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+Panel.propTypes = {
+  title: PropTypes.string.isRequired,
+  accent: PropTypes.string.isRequired,
+  children: PropTypes.node,
+};
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{
+        fontSize: 12, fontWeight: 700, color: C.textSub,
+        display: 'block', marginBottom: 5,
+      }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+Field.propTypes = { label: PropTypes.string.isRequired, children: PropTypes.node };
+
+const inputStyle = {
+  width: '100%', padding: '9px 12px', fontSize: 13, borderRadius: 8,
+  boxSizing: 'border-box', background: C.input,
+  border: `1px solid ${C.border}`, color: C.text, outline: 'none',
+};
+
+function Note({ tone, children }) {
+  const clr = tone === 'ok' ? C.green : tone === 'err' ? C.red : C.textMuted;
+  return (
+    <div style={{
+      padding: '8px 12px', borderRadius: 8, fontSize: 12,
+      border: `1px solid ${clr}33`, background: `${clr}11`, color: clr,
+      wordBreak: 'break-word',
+    }}>
+      {children}
+    </div>
+  );
+}
+
+Note.propTypes = { tone: PropTypes.string, children: PropTypes.node };
+
 export default function InviterUserModal({ onClose }) {
-  const { t } = useLang();
-
-  // Global Auth State
-  const [cookies, setCookies] = useState("");
+  // Shared auth — both tools post the same cookies + businessId.
+  // fb_dtsg / lsd are deliberately absent: the server pulls them fresh from
+  // the session via extractFbTokens() on every request.
+  const [cookies, setCookies]       = useState("");
   const [businessId, setBusinessId] = useState("");
-  const [fbDtsg, setFbDtsg] = useState("");
-  const [lsd, setLsd] = useState("");
 
-  // Invite Tool State
+  // Invite tool
   const [generatedEmail, setGeneratedEmail] = useState("");
-  const [emailToken, setEmailToken] = useState("");
-  const [assetId, setAssetId] = useState("");
-  const [isCheckingInbox, setIsCheckingInbox] = useState(false);
-  const [activeTab, setActiveTab] = useState("invite"); // "invite" or "permissions"
+  const [emailToken, setEmailToken]         = useState("");
+  const [assetId, setAssetId]               = useState("");
+  const [generating, setGenerating]         = useState(false);
+  const [sending, setSending]               = useState(false);
+  const [inviteResult, setInviteResult]     = useState(null);
+  const [messages, setMessages]             = useState([]);
+  const [polling, setPolling]               = useState(false);
+  const [inviteLink, setInviteLink]         = useState("");
+  const [inboxError, setInboxError]         = useState("");
 
-  // Permissions Tool State
-  const [userId, setUserId] = useState("");
+  // Permissions tool
+  const [userId, setUserId]         = useState("");
+  const [granting, setGranting]     = useState(false);
+  const [grantResult, setGrantResult] = useState(null);
 
-  // Mutations & Queries
-  const createTempEmail = useCreateTempEmail();
-  const sendInvite = useSendInvite();
-  const grantPermissions = useGrantPermissions();
-  const { data: messagesData, isFetching: isFetchingMessages, refetch: refetchMessages } = useGetTempEmailMessages(
-    { token: emailToken },
-    { query: { enabled: isCheckingInbox && !!emailToken, refetchInterval: isCheckingInbox ? 5000 : false } }
-  );
+  const pollRef = useRef(null);
 
-  const messages = messagesData?.messages || [];
-  const latestMessageId = messages.length > 0 ? messages[0].id : null;
+  useEffect(() => () => clearInterval(pollRef.current), []);
 
-  const { data: inviteLinkData, isFetching: isFetchingLink } = useExtractInviteLink(
-    { token: emailToken, messageId: latestMessageId || "" },
-    { query: { enabled: !!latestMessageId && isCheckingInbox } }
-  );
+  const authReady = cookies.trim() && businessId.trim();
 
-  useEffect(() => {
-    if (inviteLinkData?.found) {
-      setIsCheckingInbox(false);
+  const handleGenerateEmail = async () => {
+    setGenerating(true);
+    setInviteResult(null);
+    try {
+      const data = await postJson("/api/temp-email/create", {});
+      setGeneratedEmail(data.email);
+      setEmailToken(data.token);
+      setMessages([]);
+      setInviteLink("");
+      setInboxError("");
+    } catch (e) {
+      setInviteResult({ success: false, message: e.message });
+    } finally {
+      setGenerating(false);
     }
-  }, [inviteLinkData]);
-
-  const handleGenerateEmail = () => {
-    createTempEmail.mutate(undefined, {
-      onSuccess: (data) => {
-        setGeneratedEmail(data.email);
-        setEmailToken(data.token);
-        setIsCheckingInbox(false);
-      },
-    });
   };
 
-  const handleSendInvite = () => {
-    sendInvite.mutate({
-      data: {
-        cookies,
-        businessId,
-        fbDtsg,
-        lsd,
+  const handleSendInvite = async () => {
+    setSending(true);
+    setInviteResult(null);
+    try {
+      const data = await postJson("/api/send-invite", {
+        cookies, businessId,
         email: generatedEmail,
-        assetId: assetId || null,
-      },
-    });
+        assetId: assetId.trim() || null,
+      });
+      setInviteResult(data);
+    } catch (e) {
+      setInviteResult({ success: false, message: e.message });
+    } finally {
+      setSending(false);
+    }
   };
 
-  const handleCheckInbox = () => {
+  const pollInbox = async () => {
     if (!emailToken) return;
-    setIsCheckingInbox(true);
-    refetchMessages();
+    try {
+      const msgData = await getJson(
+        `/api/temp-email/messages?token=${encodeURIComponent(emailToken)}`);
+      const list = msgData.messages || [];
+      setMessages(list);
+      setInboxError("");
+
+      if (list.length > 0) {
+        const linkData = await getJson(
+          `/api/temp-email/invite-link?token=${encodeURIComponent(emailToken)}` +
+          `&messageId=${encodeURIComponent(list[0].id)}`);
+        if (linkData.found && linkData.link) {
+          setInviteLink(linkData.link);
+          stopPolling();
+        }
+      }
+    } catch (e) {
+      setInboxError(e.message);
+    }
   };
 
-  const handleGrantPermissions = () => {
-    grantPermissions.mutate({
-      data: {
-        cookies,
-        businessId,
-        fbDtsg,
-        lsd,
-        userId,
-      },
-    });
+  const stopPolling = () => {
+    clearInterval(pollRef.current);
+    pollRef.current = null;
+    setPolling(false);
   };
 
-  const handleCopy = (text) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
+  const togglePolling = () => {
+    if (polling) { stopPolling(); return; }
+    if (!emailToken) return;
+    setPolling(true);
+    pollInbox();
+    pollRef.current = setInterval(pollInbox, POLL_INTERVAL_MS);
   };
+
+  const handleGrantPermissions = async () => {
+    setGranting(true);
+    setGrantResult(null);
+    try {
+      const data = await postJson("/api/grant-permissions", {
+        cookies, businessId, userId: userId.trim(),
+      });
+      setGrantResult(data);
+    } catch (e) {
+      setGrantResult({ success: false, message: e.message });
+    } finally {
+      setGranting(false);
+    }
+  };
+
+  const copy = (text) => { if (text) navigator.clipboard.writeText(text); };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
-    >
-      <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-700 bg-slate-800/50">
-          <h1 className="text-2xl font-bold text-white">Meta Business Tools</h1>
-          <button
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-            aria-label="Close"
-          >
-            ✕
-          </button>
+    <div style={{ width: '100%', maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        paddingBottom: 12, borderBottom: `1px solid ${C.border}`,
+      }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.text }}>
+          Inviter User to BM
+        </h1>
+        <button onClick={onClose} aria-label="Close" style={{
+          width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
+          background: 'rgba(255,255,255,0.08)', border: `1px solid ${C.border}`,
+          color: C.text, fontSize: 14,
+        }}>
+          ✕
+        </button>
+      </div>
+
+      {/* Shared credentials — applies to both tools */}
+      <Panel title="Auth — shared by both tools" accent={C.textSub}>
+        <Field label="Cookies">
+          <CookieInput value={cookies} onChange={setCookies} />
+        </Field>
+        <Field label="Business ID">
+          <input
+            type="text"
+            value={businessId}
+            onChange={(e) => setBusinessId(e.target.value)}
+            placeholder="1234567890"
+            style={inputStyle}
+          />
+        </Field>
+        <div style={{ fontSize: 11, color: C.textMuted }}>
+          fb_dtsg and LSD are extracted server-side from these cookies on every request.
         </div>
+      </Panel>
 
-        {/* Tabs */}
-        <div className="flex gap-4 px-6 pt-6 border-b border-slate-700">
-          <button
-            onClick={() => setActiveTab("invite")}
-            className={`pb-3 font-semibold transition-colors ${
-              activeTab === "invite"
-                ? "border-b-2 border-blue-500 text-blue-400"
-                : "text-slate-400 hover:text-slate-300"
-            }`}
-          >
-            📧 Invite Tool
-          </button>
-          <button
-            onClick={() => setActiveTab("permissions")}
-            className={`pb-3 font-semibold transition-colors ${
-              activeTab === "permissions"
-                ? "border-b-2 border-purple-500 text-purple-400"
-                : "text-slate-400 hover:text-slate-300"
-            }`}
-          >
-            🔐 Permissions
-          </button>
-        </div>
-
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-          {/* Global Credentials */}
-          <div className="space-y-4 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-            <h3 className="font-semibold text-slate-200">Global Auth Credentials</h3>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-2">Cookies</label>
-              <CookieInput
-                value={cookies}
-                onChange={setCookies}
-                placeholder="c_user=...; xs=...;"
-                className="w-full h-16"
+      {/* The two tools, side by side */}
+      <div style={{
+        display: 'grid', gap: 14,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+        alignItems: 'start',
+      }}>
+        {/* ── Invite tool ── */}
+        <Panel title="📧 Invite User" accent={C.blue}>
+          <Field label="Temp email address">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                readOnly
+                value={generatedEmail}
+                placeholder="Not generated yet"
+                style={{ ...inputStyle, color: C.blue, fontFamily: 'monospace' }}
               />
+              <button onClick={() => copy(generatedEmail)} disabled={!generatedEmail}
+                style={{
+                  padding: '9px 12px', borderRadius: 8, cursor: generatedEmail ? 'pointer' : 'default',
+                  background: C.input, border: `1px solid ${C.border}`, color: C.textSub,
+                  opacity: generatedEmail ? 1 : .5,
+                }}>
+                📋
+              </button>
+              <button onClick={handleGenerateEmail} disabled={generating}
+                style={{
+                  padding: '9px 16px', borderRadius: 8, cursor: generating ? 'default' : 'pointer',
+                  background: generating ? C.input : C.blue, border: 'none',
+                  color: '#fff', fontWeight: 700, fontSize: 13, whiteSpace: 'nowrap',
+                }}>
+                {generating ? '…' : 'Generate'}
+              </button>
             </div>
+          </Field>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">Business ID</label>
-                <input
-                  type="text"
-                  value={businessId}
-                  onChange={(e) => setBusinessId(e.target.value)}
-                  placeholder="1234567890"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">fb_dtsg</label>
-                <input
-                  type="text"
-                  value={fbDtsg}
-                  onChange={(e) => setFbDtsg(e.target.value)}
-                  placeholder="AQG..."
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">LSD</label>
-                <input
-                  type="text"
-                  value={lsd}
-                  onChange={(e) => setLsd(e.target.value)}
-                  placeholder="xyz..."
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
+          <Field label="Asset ID (optional)">
+            <input
+              type="text"
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+              placeholder="Page or Ad Account ID"
+              style={inputStyle}
+            />
+          </Field>
+
+          <button
+            onClick={handleSendInvite}
+            disabled={sending || !generatedEmail || !authReady}
+            style={{
+              width: '100%', padding: '10px', borderRadius: 8, border: 'none',
+              cursor: (sending || !generatedEmail || !authReady) ? 'default' : 'pointer',
+              background: (sending || !generatedEmail || !authReady) ? C.input : C.blue,
+              color: '#fff', fontWeight: 700, fontSize: 13,
+            }}>
+            {sending ? 'Sending…' : 'Send Invite'}
+          </button>
+
+          {inviteResult && (
+            <Note tone={inviteResult.success ? 'ok' : 'err'}>{inviteResult.message}</Note>
+          )}
+
+          {/* Inbox */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.textSub }}>Inbox</span>
+            <button onClick={togglePolling} disabled={!emailToken}
+              style={{
+                padding: '4px 10px', borderRadius: 6, fontSize: 11,
+                cursor: emailToken ? 'pointer' : 'default',
+                background: C.input, border: `1px solid ${C.border}`,
+                color: polling ? C.green : C.textSub, opacity: emailToken ? 1 : .5,
+              }}>
+              {polling ? '⏸ Stop polling' : '▶ Check inbox'}
+            </button>
           </div>
 
-          {/* INVITE TOOL */}
-          {activeTab === "invite" && (
-            <div className="space-y-4">
-              {/* 1. Generate Email */}
-              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-                <h4 className="font-semibold text-blue-400 text-sm">1. Temp Email Address</h4>
-                <div className="flex gap-2">
-                  <input
-                    readOnly
-                    value={generatedEmail}
-                    placeholder="Waiting for generation..."
-                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-blue-400 font-mono placeholder-slate-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => handleCopy(generatedEmail)}
-                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-sm text-slate-300 transition-colors"
-                  >
-                    📋
-                  </button>
-                  <button
-                    onClick={handleGenerateEmail}
-                    disabled={createTempEmail.isPending}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
-                  >
-                    {createTempEmail.isPending ? "..." : "Generate"}
-                  </button>
-                </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 160, overflowY: 'auto' }}>
+            {!emailToken ? (
+              <div style={{ padding: 14, textAlign: 'center', fontSize: 11, color: C.textMuted, border: `1px dashed ${C.border}`, borderRadius: 8 }}>
+                Generate a temp email first
               </div>
-
-              {/* 2. Send Invite */}
-              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-                <h4 className="font-semibold text-blue-400 text-sm">2. Send Invite</h4>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">Asset ID (Optional)</label>
-                  <input
-                    type="text"
-                    value={assetId}
-                    onChange={(e) => setAssetId(e.target.value)}
-                    placeholder="Page or Ad Account ID"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
+            ) : messages.length === 0 ? (
+              <div style={{ padding: 14, textAlign: 'center', fontSize: 11, color: C.textMuted, border: `1px dashed ${C.border}`, borderRadius: 8 }}>
+                {polling ? 'Listening for mail…' : 'No messages yet'}
+              </div>
+            ) : messages.map(m => (
+              <div key={m.id} style={{ padding: 8, borderRadius: 6, background: C.input, border: `1px solid ${C.border}`, fontSize: 11 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <span style={{ color: C.text, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {m.subject}
+                  </span>
+                  <span style={{ color: C.textMuted, fontSize: 10, flexShrink: 0 }}>
+                    {m.createdAt ? new Date(m.createdAt).toLocaleTimeString() : ''}
+                  </span>
                 </div>
+                <div style={{ color: C.textMuted, fontSize: 10 }}>{m.from}</div>
+              </div>
+            ))}
+          </div>
 
-                <button
-                  onClick={handleSendInvite}
-                  disabled={
-                    sendInvite.isPending ||
-                    !generatedEmail ||
-                    !cookies ||
-                    !businessId ||
-                    !fbDtsg ||
-                    !lsd
-                  }
-                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
-                >
-                  {sendInvite.isPending ? "Sending..." : "Execute Send Invite"}
+          {inboxError && <Note tone="err">{inboxError}</Note>}
+
+          {inviteLink && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 10, borderRadius: 8, border: `1px solid ${C.green}55`, background: `${C.green}11` }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>✓ Invite link extracted</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input readOnly value={inviteLink}
+                  style={{ ...inputStyle, fontSize: 11, color: C.green, fontFamily: 'monospace', borderColor: `${C.green}55` }} />
+                <button onClick={() => copy(inviteLink)}
+                  style={{ padding: '6px 10px', borderRadius: 6, cursor: 'pointer', background: C.input, border: `1px solid ${C.border}`, color: C.textSub }}>
+                  📋
                 </button>
-
-                {sendInvite.isSuccess && sendInvite.data && (
-                  <div
-                    className={`p-3 rounded text-xs ${
-                      sendInvite.data.success
-                        ? "bg-green-900/30 border border-green-700 text-green-300"
-                        : "bg-red-900/30 border border-red-700 text-red-300"
-                    }`}
-                  >
-                    {sendInvite.data.message}
-                  </div>
-                )}
-              </div>
-
-              {/* 3. Check Inbox */}
-              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-blue-400 text-sm">3. Inbox Polling</h4>
-                  <button
-                    onClick={handleCheckInbox}
-                    disabled={!emailToken || isCheckingInbox}
-                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded text-xs text-slate-300 transition-colors"
-                  >
-                    {isCheckingInbox ? "Polling..." : "Check Inbox"}
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {!emailToken ? (
-                    <div className="text-center py-4 border border-dashed border-slate-600 rounded text-xs text-slate-500 font-mono">
-                      Awaiting temp email...
-                    </div>
-                  ) : messages.length === 0 ? (
-                    <div className="text-center py-4 border border-dashed border-slate-600 rounded text-xs text-slate-500 font-mono">
-                      {isCheckingInbox ? "Listening for mail..." : "No messages yet"}
-                    </div>
-                  ) : (
-                    messages.map((msg) => (
-                      <div key={msg.id} className="p-2 border border-slate-600 rounded bg-slate-700/50 text-xs">
-                        <div className="flex justify-between gap-2">
-                          <span className="text-slate-200 font-semibold truncate">{msg.subject}</span>
-                          <span className="text-slate-500 text-[10px] shrink-0">
-                            {new Date(msg.createdAt).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <div className="text-slate-400 text-[10px]">{msg.from}</div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {inviteLinkData?.found && inviteLinkData.link && (
-                  <div className="p-3 border border-green-700/50 rounded bg-green-900/20 space-y-2">
-                    <div className="text-green-400 text-xs font-semibold">✓ Invite Link Extracted</div>
-                    <div className="flex gap-2">
-                      <input
-                        readOnly
-                        value={inviteLinkData.link}
-                        className="flex-1 px-2 py-1 bg-slate-700 border border-green-700 rounded text-xs text-green-400 font-mono"
-                      />
-                      <button
-                        onClick={() => handleCopy(inviteLinkData.link)}
-                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300"
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
+        </Panel>
 
-          {/* PERMISSIONS TOOL */}
-          {activeTab === "permissions" && (
-            <div className="space-y-4">
-              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-                <h4 className="font-semibold text-purple-400 text-sm">Grant Admin Permissions</h4>
+        {/* ── Permissions tool ── */}
+        <Panel title="🔐 Grant Permissions" accent={C.purple}>
+          <Field label="Target user ID">
+            <input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="1000..."
+              style={inputStyle}
+            />
+          </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2">Target User ID</label>
-                  <input
-                    type="text"
-                    value={userId}
-                    onChange={(e) => setUserId(e.target.value)}
-                    placeholder="1000..."
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
-                  />
-                </div>
+          <button
+            onClick={handleGrantPermissions}
+            disabled={granting || !userId.trim() || !authReady}
+            style={{
+              width: '100%', padding: '10px', borderRadius: 8, border: 'none',
+              cursor: (granting || !userId.trim() || !authReady) ? 'default' : 'pointer',
+              background: (granting || !userId.trim() || !authReady) ? C.input : C.purple,
+              color: '#fff', fontWeight: 700, fontSize: 13,
+            }}>
+            {granting ? 'Granting…' : 'Grant All Admin Permissions'}
+          </button>
 
-                <button
-                  onClick={handleGrantPermissions}
-                  disabled={
-                    grantPermissions.isPending ||
-                    !userId ||
-                    !cookies ||
-                    !businessId ||
-                    !fbDtsg ||
-                    !lsd
-                  }
-                  className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
-                >
-                  {grantPermissions.isPending ? "Granting..." : "Execute Grant"}
-                </button>
-
-                {grantPermissions.isSuccess && grantPermissions.data && (
-                  <div
-                    className={`p-3 rounded text-xs ${
-                      grantPermissions.data.success
-                        ? "bg-purple-900/30 border border-purple-700 text-purple-300"
-                        : "bg-red-900/30 border border-red-700 text-red-300"
-                    }`}
-                  >
-                    {grantPermissions.data.message}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
-                <h4 className="font-semibold text-slate-300 text-sm">Operations Included</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    "MANAGE",
-                    "CREATE_CONTENT",
-                    "BASIC_CARDS",
-                    "MESSAGE",
-                    "EDIT_PROFILE",
-                    "ANALYZE",
-                    "MODERATE",
-                    "ADVERTISE",
-                    "CASHIER_ROLE",
-                    "VIEW_COST",
-                    "MANAGE_LEADS",
-                    "PUBLISH_CONTENT",
-                  ].map((task) => (
-                    <div
-                      key={task}
-                      className="text-[10px] font-mono px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-slate-300"
-                    >
-                      ✓ {task}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+          {grantResult && (
+            <Note tone={grantResult.success ? 'ok' : 'err'}>{grantResult.message}</Note>
           )}
-        </div>
+
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.textSub, display: 'block', marginBottom: 8 }}>
+              Operations included
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {ADMIN_TASKS.map(task => (
+                <div key={task} style={{
+                  fontSize: 10, fontFamily: 'monospace', padding: '4px 8px',
+                  borderRadius: 6, background: C.input,
+                  border: `1px solid ${C.border}`, color: C.textSub,
+                }}>
+                  ✓ {task}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
       </div>
-    </motion.div>
+
+      {!authReady && (
+        <Note tone="info">Enter cookies and Business ID above to enable both tools.</Note>
+      )}
+    </div>
   );
 }
 
