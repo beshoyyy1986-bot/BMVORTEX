@@ -20,6 +20,7 @@ const MetaAdsOneWayModal   = lazy(() => import("./components/MetaAdsOneWayModal.
 const CcFromBmModal        = lazy(() => import("./components/CcFromBmModal.jsx"));
 const VortexCCToolsPage    = lazy(() => import("./components/VortexCCToolsPage.jsx"));
 const BmCreatorModal          = lazy(() => import("./components/BmCreatorModal.jsx"));
+const InviterUserModal        = lazy(() => import("./components/InviterUserModal.jsx"));
 const VortexMetaToolsModal    = lazy(() => import("./components/VortexMetaToolsModal.jsx"));
 const RemovePaymentModal      = lazy(() => import("./components/RemovePaymentModal.jsx"));
 const AddFundsModal           = lazy(() => import("./components/AddFundsModal.jsx"));
@@ -38,6 +39,7 @@ const mainCards = [
   { title: "Mini Meta 2$",          type: "mini_meta_2",       logo: "/mini-meta-2$/logo.png" },
   { title: "CC FROM BM",            type: "cc_from_bm",        logo: "/meta_cards_from_bm.png" },
   { title: "CREATE BM & AD ACC & INFO", type: "bm_creator",   logo: "/meta_cards_from_bm.png" },
+  { title: "Inviter User to BM",    type: "inviter_user_bm",   logo: "/inviter_user.png" },
   { title: "Vortex CC Tools",       type: "cc_tools",          logo: "/cc_tools_logo.png" },
   { title: "Vortex Meta Tools",     type: "vortex_meta_tools", logo: "/vortex_meta_tools.png", free: true },
   { title: "Remove Payment",        type: "remove_payment",    logo: "/remove_payment.png" },
@@ -60,7 +62,7 @@ const mainCards = [
   { title: "Support Center",        type: "support" },
 ];
 
-const HOT_TYPES = new Set(["bm_meta_tool", "meta_ads_one_way", "mini_meta_2", "cc_from_bm", "bm_creator", "cc_tools"]);
+const HOT_TYPES = new Set(["bm_meta_tool", "meta_ads_one_way", "mini_meta_2", "cc_from_bm", "bm_creator", "inviter_user_bm", "cc_tools"]);
 
 const planAccess = {
   none:       [],
@@ -311,7 +313,7 @@ function AuthPageShell({ title, subtitle, children, isDark }) {
 }
 AuthPageShell.propTypes = { title: PropTypes.string, subtitle: PropTypes.string, children: PropTypes.node, isDark: PropTypes.bool };
 
-// ── Blocking screen (frozen / security lock) ──────────────────────
+// ── Blocking screen (frozen / security lock) ──────���───────────────
 function BlockScreen({ title, body, body2, footer, contactLabel }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0505] p-6" dir="auto">
@@ -982,6 +984,17 @@ export default function SecureDashboardApp() {
     );
   }
 
+  // ── Inviter User to BM — standalone page ──────────────────────
+  if (pathname === "/inviter-user-bm") {
+    return (
+      <ToolPage>
+        <Suspense fallback={<ChunkFallback />}>
+          <InviterUserModal onClose={() => navigateTo("/")} />
+        </Suspense>
+      </ToolPage>
+    );
+  }
+
   // ── Vortex CC Tools — standalone page ─────────────────────────
   if (pathname === "/cc-tools") {
     return (
@@ -1264,6 +1277,8 @@ export default function SecureDashboardApp() {
                       navigateTo("/cc-from-bm");
                     } else if (card.type === "bm_creator") {
                       navigateTo("/bm-creator");
+                    } else if (card.type === "inviter_user_bm") {
+                      navigateTo("/inviter-user-bm");
                     } else if (card.type === "vortex_meta_tools") {
                       navigateTo("/vortex-meta-tools");
                     } else if (card.type === "remove_payment") {
