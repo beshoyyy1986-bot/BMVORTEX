@@ -3,26 +3,19 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
-import { InviterUserCard } from '@/components/tools/inviter-user-card';
 
 const queryClient = new QueryClient();
 
 function Home() {
   return (
-    <div className="min-h-screen w-full bg-gray-50 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">
-            BMVORTEX - لوحة التحكم
-          </h1>
-          <p className="text-gray-600">
-            أدوات متقدمة لإدارة حسابات Meta Business Manager
-          </p>
-        </header>
-
-        <div className="grid gap-6">
-          <InviterUserCard />
-        </div>
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-gray-900">
+          Replit Agent is building...
+        </h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Your app will appear here once it's ready.
+        </p>
       </div>
     </div>
   );
