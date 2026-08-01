@@ -1,363 +1,400 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import axios from "axios";
 import { motion } from "framer-motion";
-import CookieInput from "./CookieInput";
 import { useLang } from "../i18n.jsx";
+import {
+  useCreateTempEmail,
+  useSendInvite,
+  useGetTempEmailMessages,
+  useExtractInviteLink,
+  useGrantPermissions,
+} from "@workspace/api-client-react";
+import CookieInput from "./CookieInput";
 
-/**
- * InviterUserModal — دعوة مستخدمين إلى Business Manager
- * Sends Business Manager invitations to multiple users using the unified extract function
- */
 export default function InviterUserModal({ onClose }) {
   const { t } = useLang();
 
-  // Form state
+  // Global Auth State
   const [cookies, setCookies] = useState("");
   const [businessId, setBusinessId] = useState("");
-  const [emailList, setEmailList] = useState("");
+  const [fbDtsg, setFbDtsg] = useState("");
+  const [lsd, setLsd] = useState("");
 
-  // UI state
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [results, setResults] = useState([]);
-  const [extractedData, setExtractedData] = useState(null);
+  // Invite Tool State
+  const [generatedEmail, setGeneratedEmail] = useState("");
+  const [emailToken, setEmailToken] = useState("");
+  const [assetId, setAssetId] = useState("");
+  const [isCheckingInbox, setIsCheckingInbox] = useState(false);
+  const [activeTab, setActiveTab] = useState("invite"); // "invite" or "permissions"
 
-  /**
-   * Extract session data using the unified extraction API
-   * (same as other tools in the app)
-   */
-  const handleExtractSession = useCallback(async () => {
-    if (!cookies.trim()) {
-      setError(t("enter_cookies"));
-      return;
+  // Permissions Tool State
+  const [userId, setUserId] = useState("");
+
+  // Mutations & Queries
+  const createTempEmail = useCreateTempEmail();
+  const sendInvite = useSendInvite();
+  const grantPermissions = useGrantPermissions();
+  const { data: messagesData, isFetching: isFetchingMessages, refetch: refetchMessages } = useGetTempEmailMessages(
+    { token: emailToken },
+    { query: { enabled: isCheckingInbox && !!emailToken, refetchInterval: isCheckingInbox ? 5000 : false } }
+  );
+
+  const messages = messagesData?.messages || [];
+  const latestMessageId = messages.length > 0 ? messages[0].id : null;
+
+  const { data: inviteLinkData, isFetching: isFetchingLink } = useExtractInviteLink(
+    { token: emailToken, messageId: latestMessageId || "" },
+    { query: { enabled: !!latestMessageId && isCheckingInbox } }
+  );
+
+  useEffect(() => {
+    if (inviteLinkData?.found) {
+      setIsCheckingInbox(false);
     }
+  }, [inviteLinkData]);
 
-    setLoading(true);
-    setError("");
-    setSuccess("");
+  const handleGenerateEmail = () => {
+    createTempEmail.mutate(undefined, {
+      onSuccess: (data) => {
+        setGeneratedEmail(data.email);
+        setEmailToken(data.token);
+        setIsCheckingInbox(false);
+      },
+    });
+  };
 
-    try {
-      const response = await axios.post("/api/extract/session", {
+  const handleSendInvite = () => {
+    sendInvite.mutate({
+      data: {
         cookies,
-        url: "https://business.facebook.com/",
-      });
+        businessId,
+        fbDtsg,
+        lsd,
+        email: generatedEmail,
+        assetId: assetId || null,
+      },
+    });
+  };
 
-      if (response.data.ok) {
-        setExtractedData(response.data);
-        setSuccess(t("session_extracted") || "تم استخراج الجلسة بنجاح");
-        // Auto-fill business ID if available
-        if (response.data.bizId && !businessId) {
-          setBusinessId(response.data.bizId);
-        }
-      } else {
-        setError(response.data.error || t("extraction_failed"));
-      }
-    } catch (err) {
-      setError(
-        err.response?.data?.error ||
-        err.message ||
-        t("connection_error")
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [cookies, businessId, t]);
+  const handleCheckInbox = () => {
+    if (!emailToken) return;
+    setIsCheckingInbox(true);
+    refetchMessages();
+  };
 
-  /**
-   * Send invitations to the email list
-   */
-  const handleSendInvites = useCallback(async () => {
-    // Validation
-    if (!cookies.trim()) {
-      setError(t("enter_cookies"));
-      return;
-    }
-    if (!businessId.trim()) {
-      setError(t("enter_business_id") || "يرجى إدخال معرف الأعمال");
-      return;
-    }
-    if (!emailList.trim()) {
-      setError(t("enter_emails") || "يرجى إدخال قائمة البريد الإلكتروني");
-      return;
-    }
+  const handleGrantPermissions = () => {
+    grantPermissions.mutate({
+      data: {
+        cookies,
+        businessId,
+        fbDtsg,
+        lsd,
+        userId,
+      },
+    });
+  };
 
-    // Parse emails
-    const emails = emailList
-      .split("\n")
-      .map((e) => e.trim())
-      .filter((e) => e && e.includes("@"));
-
-    if (emails.length === 0) {
-      setError(t("no_valid_emails") || "لا توجد رسائل بريد إلكترونية صحيحة");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    setSuccess("");
-    setResults(
-      emails.map((email) => ({
-        email,
-        status: "pending",
-        message: "",
-      }))
-    );
-
-    try {
-      // Send invites
-      for (let i = 0; i < emails.length; i++) {
-        const email = emails[i];
-        try {
-          const response = await axios.post("/api/meta/send-invite", {
-            cookies,
-            businessId,
-            email,
-          });
-
-          setResults((prev) =>
-            prev.map((r) =>
-              r.email === email
-                ? {
-                    ...r,
-                    status: response.data.success ? "success" : "error",
-                    message: response.data.message || response.data.error || "",
-                  }
-                : r
-            )
-          );
-        } catch (err) {
-          setResults((prev) =>
-            prev.map((r) =>
-              r.email === email
-                ? {
-                    ...r,
-                    status: "error",
-                    message: err.response?.data?.message || err.message || "خطأ",
-                  }
-                : r
-            )
-          );
-        }
-      }
-
-      setSuccess(t("invites_sent") || "انتهت عملية الإرسال");
-    } catch (err) {
-      setError(err.message || t("error_occurred"));
-    } finally {
-      setLoading(false);
-    }
-  }, [cookies, businessId, emailList, t]);
-
-  const handleReset = useCallback(() => {
-    setCookies("");
-    setBusinessId("");
-    setEmailList("");
-    setError("");
-    setSuccess("");
-    setResults([]);
-    setExtractedData(null);
-  }, []);
-
-  const validEmails = emailList
-    .split("\n")
-    .filter((e) => e.trim() && e.includes("@")).length;
+  const handleCopy = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+  };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="flex min-h-screen flex-col gap-6 bg-gradient-to-br from-slate-900 to-slate-950 p-6"
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 overflow-y-auto"
     >
-      <div className="mx-auto w-full max-w-2xl space-y-8">
+      <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl">
         {/* Header */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-black text-white">
-              دعوة مستخدمين إلى Business Manager
-            </h1>
-            <button
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
-              aria-label="إغلاق"
-            >
-              ✕
-            </button>
-          </div>
-          <p className="text-slate-400">
-            أرسل دعوات لمستخدمين للانضمام إلى حسابك في Meta Business Manager
-          </p>
+        <div className="flex items-center justify-between p-6 border-b border-slate-700 bg-slate-800/50">
+          <h1 className="text-2xl font-bold text-white">Meta Business Tools</h1>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Alert Messages */}
-        {error && (
-          <div className="rounded-xl bg-red-500/20 border border-red-500/40 p-4 text-sm text-red-200">
-            <span className="font-semibold">خطأ:</span> {error}
-          </div>
-        )}
-        {success && (
-          <div className="rounded-xl bg-green-500/20 border border-green-500/40 p-4 text-sm text-green-200">
-            <span className="font-semibold">نجاح:</span> {success}
-          </div>
-        )}
+        {/* Tabs */}
+        <div className="flex gap-4 px-6 pt-6 border-b border-slate-700">
+          <button
+            onClick={() => setActiveTab("invite")}
+            className={`pb-3 font-semibold transition-colors ${
+              activeTab === "invite"
+                ? "border-b-2 border-blue-500 text-blue-400"
+                : "text-slate-400 hover:text-slate-300"
+            }`}
+          >
+            📧 Invite Tool
+          </button>
+          <button
+            onClick={() => setActiveTab("permissions")}
+            className={`pb-3 font-semibold transition-colors ${
+              activeTab === "permissions"
+                ? "border-b-2 border-purple-500 text-purple-400"
+                : "text-slate-400 hover:text-slate-300"
+            }`}
+          >
+            🔐 Permissions
+          </button>
+        </div>
 
-        {/* Extracted Data Info */}
-        {extractedData && (
-          <div className="rounded-xl bg-blue-500/20 border border-blue-500/40 p-4 space-y-2 text-sm text-blue-200">
-            <div className="font-semibold">✓ تم استخراج بيانات الجلسة:</div>
-            {extractedData.userId && (
-              <div>معرف المستخدم: {extractedData.userId}</div>
-            )}
-            {extractedData.bizId && (
-              <div>معرف الأعمال: {extractedData.bizId}</div>
-            )}
-            {extractedData.platform && (
-              <div>المنصة: {extractedData.platform}</div>
-            )}
-          </div>
-        )}
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Global Credentials */}
+          <div className="space-y-4 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+            <h3 className="font-semibold text-slate-200">Global Auth Credentials</h3>
 
-        {/* Form */}
-        <div className="space-y-6 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-          {/* Cookies Input */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              ملف تعريفات الارتباط (Cookies)
-            </label>
-            <div className="space-y-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-2">Cookies</label>
               <CookieInput
                 value={cookies}
-                onChange={(val) => {
-                  setCookies(val);
-                  setExtractedData(null);
-                }}
-                placeholder="الصق ملف تعريفات الارتباط من Facebook هنا..."
+                onChange={setCookies}
+                placeholder="c_user=...; xs=...;"
+                className="w-full h-16"
               />
             </div>
-          </div>
 
-          {/* Extract Button */}
-          <button
-            onClick={handleExtractSession}
-            disabled={!cookies.trim() || loading}
-            className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 py-2.5 px-4 font-semibold text-white transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <span className="animate-spin">⌛</span>
-                جاري الاستخراج...
-              </>
-            ) : (
-              <>📋 استخراج بيانات الجلسة</>
-            )}
-          </button>
-
-          {/* Business ID */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              معرف Business ID
-            </label>
-            <input
-              type="text"
-              value={businessId}
-              onChange={(e) => setBusinessId(e.target.value)}
-              placeholder="أدخل رقم Business Manager..."
-              className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
-            />
-          </div>
-
-          {/* Email List */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-white">
-              قائمة البريد الإلكتروني (واحد لكل سطر)
-            </label>
-            <textarea
-              value={emailList}
-              onChange={(e) => setEmailList(e.target.value)}
-              placeholder="user1@example.com&#10;user2@example.com&#10;user3@example.com"
-              rows={6}
-              className="w-full rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 font-mono text-sm"
-            />
-            <div className="text-xs text-slate-400">
-              عدد الرسائل: {validEmails}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2">Business ID</label>
+                <input
+                  type="text"
+                  value={businessId}
+                  onChange={(e) => setBusinessId(e.target.value)}
+                  placeholder="1234567890"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2">fb_dtsg</label>
+                <input
+                  type="text"
+                  value={fbDtsg}
+                  onChange={(e) => setFbDtsg(e.target.value)}
+                  placeholder="AQG..."
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-2">LSD</label>
+                <input
+                  type="text"
+                  value={lsd}
+                  onChange={(e) => setLsd(e.target.value)}
+                  placeholder="xyz..."
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Results */}
-          {results.length > 0 && (
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold text-white">
-                نتائج الإرسال
-              </label>
-              <div className="space-y-1 max-h-48 overflow-y-auto rounded-lg bg-black/30 p-3">
-                {results.map((result, idx) => (
+          {/* INVITE TOOL */}
+          {activeTab === "invite" && (
+            <div className="space-y-4">
+              {/* 1. Generate Email */}
+              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+                <h4 className="font-semibold text-blue-400 text-sm">1. Temp Email Address</h4>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={generatedEmail}
+                    placeholder="Waiting for generation..."
+                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-blue-400 font-mono placeholder-slate-500 focus:outline-none"
+                  />
+                  <button
+                    onClick={() => handleCopy(generatedEmail)}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded text-sm text-slate-300 transition-colors"
+                  >
+                    📋
+                  </button>
+                  <button
+                    onClick={handleGenerateEmail}
+                    disabled={createTempEmail.isPending}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
+                  >
+                    {createTempEmail.isPending ? "..." : "Generate"}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2. Send Invite */}
+              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+                <h4 className="font-semibold text-blue-400 text-sm">2. Send Invite</h4>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">Asset ID (Optional)</label>
+                  <input
+                    type="text"
+                    value={assetId}
+                    onChange={(e) => setAssetId(e.target.value)}
+                    placeholder="Page or Ad Account ID"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSendInvite}
+                  disabled={
+                    sendInvite.isPending ||
+                    !generatedEmail ||
+                    !cookies ||
+                    !businessId ||
+                    !fbDtsg ||
+                    !lsd
+                  }
+                  className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
+                >
+                  {sendInvite.isPending ? "Sending..." : "Execute Send Invite"}
+                </button>
+
+                {sendInvite.isSuccess && sendInvite.data && (
                   <div
-                    key={idx}
-                    className={`text-xs p-2 rounded flex justify-between items-center ${
-                      result.status === "success"
-                        ? "bg-green-500/20 text-green-200"
-                        : result.status === "error"
-                          ? "bg-red-500/20 text-red-200"
-                          : "bg-blue-500/20 text-blue-200"
+                    className={`p-3 rounded text-xs ${
+                      sendInvite.data.success
+                        ? "bg-green-900/30 border border-green-700 text-green-300"
+                        : "bg-red-900/30 border border-red-700 text-red-300"
                     }`}
                   >
-                    <span>{result.email}</span>
-                    <span>
-                      {result.status === "pending"
-                        ? "⏳"
-                        : result.status === "success"
-                          ? "✓"
-                          : "✗"}
-                      {result.message && ` ${result.message}`}
-                    </span>
+                    {sendInvite.data.message}
                   </div>
-                ))}
+                )}
+              </div>
+
+              {/* 3. Check Inbox */}
+              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-blue-400 text-sm">3. Inbox Polling</h4>
+                  <button
+                    onClick={handleCheckInbox}
+                    disabled={!emailToken || isCheckingInbox}
+                    className="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded text-xs text-slate-300 transition-colors"
+                  >
+                    {isCheckingInbox ? "Polling..." : "Check Inbox"}
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {!emailToken ? (
+                    <div className="text-center py-4 border border-dashed border-slate-600 rounded text-xs text-slate-500 font-mono">
+                      Awaiting temp email...
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="text-center py-4 border border-dashed border-slate-600 rounded text-xs text-slate-500 font-mono">
+                      {isCheckingInbox ? "Listening for mail..." : "No messages yet"}
+                    </div>
+                  ) : (
+                    messages.map((msg) => (
+                      <div key={msg.id} className="p-2 border border-slate-600 rounded bg-slate-700/50 text-xs">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-slate-200 font-semibold truncate">{msg.subject}</span>
+                          <span className="text-slate-500 text-[10px] shrink-0">
+                            {new Date(msg.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <div className="text-slate-400 text-[10px]">{msg.from}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {inviteLinkData?.found && inviteLinkData.link && (
+                  <div className="p-3 border border-green-700/50 rounded bg-green-900/20 space-y-2">
+                    <div className="text-green-400 text-xs font-semibold">✓ Invite Link Extracted</div>
+                    <div className="flex gap-2">
+                      <input
+                        readOnly
+                        value={inviteLinkData.link}
+                        className="flex-1 px-2 py-1 bg-slate-700 border border-green-700 rounded text-xs text-green-400 font-mono"
+                      />
+                      <button
+                        onClick={() => handleCopy(inviteLinkData.link)}
+                        className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={handleSendInvites}
-              disabled={
-                !cookies.trim() ||
-                !businessId.trim() ||
-                !emailList.trim() ||
-                loading
-              }
-              className="flex-1 rounded-lg bg-green-600 hover:bg-green-700 disabled:bg-slate-600 disabled:opacity-50 py-2.5 px-4 font-semibold text-white transition-colors flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <span className="animate-spin">⌛</span>
-                  جاري الإرسال...
-                </>
-              ) : (
-                <>✉️ إرسال الدعوات</>
-              )}
-            </button>
-            <button
-              onClick={handleReset}
-              disabled={loading}
-              className="rounded-lg border border-white/20 hover:bg-white/10 disabled:opacity-50 py-2.5 px-6 font-semibold text-white transition-colors"
-            >
-              إعادة تعيين
-            </button>
-          </div>
-        </div>
+          {/* PERMISSIONS TOOL */}
+          {activeTab === "permissions" && (
+            <div className="space-y-4">
+              <div className="space-y-3 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+                <h4 className="font-semibold text-purple-400 text-sm">Grant Admin Permissions</h4>
 
-        {/* Info Box */}
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700 p-4 space-y-2 text-xs text-slate-300">
-          <div className="font-semibold text-slate-200">💡 نصائح:</div>
-          <ul className="space-y-1 list-disc list-inside">
-            <li>يتم استخراج بيانات الجلسة تلقائياً من الكوكيز</li>
-            <li>تأكد من أن حسابك له صلاحيات إدارية في Business Manager</li>
-            <li>سيتم إرسال دعوات منفصلة لكل عنوان بريد إلكتروني</li>
-            <li>قد تستغرق معالجة الدعوات بعض الوقت</li>
-          </ul>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-2">Target User ID</label>
+                  <input
+                    type="text"
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
+                    placeholder="1000..."
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <button
+                  onClick={handleGrantPermissions}
+                  disabled={
+                    grantPermissions.isPending ||
+                    !userId ||
+                    !cookies ||
+                    !businessId ||
+                    !fbDtsg ||
+                    !lsd
+                  }
+                  className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 rounded text-sm text-white font-semibold transition-colors"
+                >
+                  {grantPermissions.isPending ? "Granting..." : "Execute Grant"}
+                </button>
+
+                {grantPermissions.isSuccess && grantPermissions.data && (
+                  <div
+                    className={`p-3 rounded text-xs ${
+                      grantPermissions.data.success
+                        ? "bg-purple-900/30 border border-purple-700 text-purple-300"
+                        : "bg-red-900/30 border border-red-700 text-red-300"
+                    }`}
+                  >
+                    {grantPermissions.data.message}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 p-4 border border-slate-700 rounded-lg bg-slate-800/30">
+                <h4 className="font-semibold text-slate-300 text-sm">Operations Included</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    "MANAGE",
+                    "CREATE_CONTENT",
+                    "BASIC_CARDS",
+                    "MESSAGE",
+                    "EDIT_PROFILE",
+                    "ANALYZE",
+                    "MODERATE",
+                    "ADVERTISE",
+                    "CASHIER_ROLE",
+                    "VIEW_COST",
+                    "MANAGE_LEADS",
+                    "PUBLISH_CONTENT",
+                  ].map((task) => (
+                    <div
+                      key={task}
+                      className="text-[10px] font-mono px-2 py-1 bg-slate-700/50 border border-slate-600 rounded text-slate-300"
+                    >
+                      ✓ {task}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
