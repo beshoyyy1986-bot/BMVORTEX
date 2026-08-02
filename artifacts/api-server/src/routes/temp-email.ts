@@ -164,6 +164,7 @@ async function guerrillaMessages(secret: string): Promise<Message[]> {
       mail_subject: string;
       mail_excerpt: string;
       mail_timestamp: string | number;
+      mail_date?: string;
     }[];
   };
 
@@ -172,10 +173,30 @@ async function guerrillaMessages(secret: string): Promise<Message[]> {
     from: m.mail_from ?? "",
     subject: m.mail_subject ?? "",
     intro: m.mail_excerpt ?? "",
-    createdAt: m.mail_timestamp
-      ? new Date(Number(m.mail_timestamp) * 1000).toISOString()
-      : "",
+    createdAt: guerrillaTimestamp(m.mail_timestamp, m.mail_date),
   }));
+}
+
+// GuerrillaMail sends mail_timestamp: 0 for its own welcome mail and puts the
+// wall-clock time in mail_date ("18:41:50") instead. Fall back to that, dated
+// to today, so the UI shows a time rather than an empty cell.
+function guerrillaTimestamp(
+  timestamp: string | number | undefined,
+  mailDate: string | undefined,
+): string {
+  const epoch = Number(timestamp);
+  if (Number.isFinite(epoch) && epoch > 0) {
+    return new Date(epoch * 1000).toISOString();
+  }
+
+  if (mailDate && /^\d{1,2}:\d{2}(:\d{2})?$/.test(mailDate)) {
+    const [h, m, s] = mailDate.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, s ?? 0, 0);
+    return d.toISOString();
+  }
+
+  return new Date().toISOString();
 }
 
 async function guerrillaBody(secret: string, messageId: string): Promise<{ body: string; subject: string; id: string }> {
