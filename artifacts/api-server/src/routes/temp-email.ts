@@ -8,13 +8,27 @@ const router: IRouter = Router();
 
 const MAILTM_BASE = "https://api.mail.tm";
 
+// mail.tm rejects requests it cannot attribute to a real client; a plain
+// server-side fetch sends no UA at all, which is what the 500s were.
+const MAILTM_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 // Create a temporary email account via mail.tm
 router.post("/temp-email/create", async (req, res): Promise<void> => {
   try {
     // Step 1: get an available domain
-    const domainRes = await fetch(`${MAILTM_BASE}/domains?page=1`);
+    const domainRes = await fetch(`${MAILTM_BASE}/domains?page=1`, {
+      headers: { Accept: "application/json", "User-Agent": MAILTM_UA },
+    });
     if (!domainRes.ok) {
-      res.status(500).json({ error: "Failed to fetch available domains" });
+      const body = await domainRes.text().catch(() => "");
+      req.log.error(
+        { status: domainRes.status, body: body.slice(0, 500) },
+        "mail.tm domains request failed",
+      );
+      res.status(502).json({
+        error: `Temp-mail provider rejected the domains request (${domainRes.status})`,
+      });
       return;
     }
     const domainData = await domainRes.json() as { "hydra:member": { domain: string }[] };
@@ -33,7 +47,11 @@ router.post("/temp-email/create", async (req, res): Promise<void> => {
     // Step 3: register the account
     const createRes = await fetch(`${MAILTM_BASE}/accounts`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": MAILTM_UA,
+      },
       body: JSON.stringify({ address: email, password }),
     });
 
@@ -48,7 +66,11 @@ router.post("/temp-email/create", async (req, res): Promise<void> => {
     // Step 4: get auth token
     const tokenRes = await fetch(`${MAILTM_BASE}/token`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "User-Agent": MAILTM_UA,
+      },
       body: JSON.stringify({ address: email, password }),
     });
 
@@ -81,11 +103,22 @@ router.get("/temp-email/messages", async (req, res): Promise<void> => {
 
   try {
     const messagesRes = await fetch(`${MAILTM_BASE}/messages?page=1`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "User-Agent": MAILTM_UA,
+      },
     });
 
     if (!messagesRes.ok) {
-      res.status(500).json({ error: "Failed to fetch messages" });
+      const body = await messagesRes.text().catch(() => "");
+      req.log.error(
+        { status: messagesRes.status, body: body.slice(0, 500) },
+        "mail.tm messages request failed",
+      );
+      res.status(502).json({
+        error: `Temp-mail provider rejected the messages request (${messagesRes.status})`,
+      });
       return;
     }
 
@@ -131,7 +164,11 @@ router.get("/temp-email/invite-link", async (req, res): Promise<void> => {
 
     if (!targetMessageId) {
       const listRes = await fetch(`${MAILTM_BASE}/messages?page=1`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "User-Agent": MAILTM_UA,
+        },
       });
 
       if (!listRes.ok) {
@@ -161,7 +198,11 @@ router.get("/temp-email/invite-link", async (req, res): Promise<void> => {
 
     // Fetch full message to get HTML/text body
     const msgRes = await fetch(`${MAILTM_BASE}/messages/${targetMessageId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "User-Agent": MAILTM_UA,
+      },
     });
 
     if (!msgRes.ok) {

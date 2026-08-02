@@ -23,6 +23,10 @@ const ADMIN_TASKS = [
 
 const POLL_INTERVAL_MS = 5000;
 
+// invite / permissions / temp-email routers are all mounted under /meta
+// in api-server's routes/index.ts.
+const API = "/api/meta";
+
 async function postJson(url, body) {
   const r = await fetch(url, {
     method: "POST",
@@ -137,7 +141,7 @@ export default function InviterUserModal({ onClose }) {
     setGenerating(true);
     setInviteResult(null);
     try {
-      const data = await postJson("/api/temp-email/create", {});
+      const data = await postJson(`${API}/temp-email/create`, {});
       setGeneratedEmail(data.email);
       setEmailToken(data.token);
       setMessages([]);
@@ -154,7 +158,7 @@ export default function InviterUserModal({ onClose }) {
     setSending(true);
     setInviteResult(null);
     try {
-      const data = await postJson("/api/send-invite", {
+      const data = await postJson(`${API}/send-invite`, {
         cookies, businessId,
         email: generatedEmail,
         assetId: assetId.trim() || null,
@@ -171,14 +175,14 @@ export default function InviterUserModal({ onClose }) {
     if (!emailToken) return;
     try {
       const msgData = await getJson(
-        `/api/temp-email/messages?token=${encodeURIComponent(emailToken)}`);
+        `${API}/temp-email/messages?token=${encodeURIComponent(emailToken)}`);
       const list = msgData.messages || [];
       setMessages(list);
       setInboxError("");
 
       if (list.length > 0) {
         const linkData = await getJson(
-          `/api/temp-email/invite-link?token=${encodeURIComponent(emailToken)}` +
+          `${API}/temp-email/invite-link?token=${encodeURIComponent(emailToken)}` +
           `&messageId=${encodeURIComponent(list[0].id)}`);
         if (linkData.found && linkData.link) {
           setInviteLink(linkData.link);
@@ -208,7 +212,7 @@ export default function InviterUserModal({ onClose }) {
     setGranting(true);
     setGrantResult(null);
     try {
-      const data = await postJson("/api/grant-permissions", {
+      const data = await postJson(`${API}/grant-permissions`, {
         cookies, businessId, userId: userId.trim(),
       });
       setGrantResult(data);
