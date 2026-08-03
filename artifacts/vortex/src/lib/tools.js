@@ -15,7 +15,7 @@ export const TOOLS = [
   { type: 'add_funds_meta',    title: 'Add Funds Metagraph',          label: 'Funds Metagraph' },
   { type: 'add_primary_cc',    title: 'Add Primary CC',               label: 'Primary CC' },
   { type: 'switch_bm_old',     title: 'Switch BM to Old',             label: 'Switch BM Old' },
-  { type: 'funds',             title: 'Add Funds',                    label: 'Funds' },
+  { type: 'funds',             title: 'PREPAID TOOLS',                label: 'Prepaid' },
   { type: 'ads',               title: 'Ads Creation',                 label: 'Ads' },
   { type: 'cards',             title: 'Add Cards',                    label: 'Cards' },
   { type: 'paypal',            title: 'Add PayPal',                   label: 'PayPal' },

@@ -30,7 +30,7 @@ const AddPrimaryModal         = lazy(() => import("./components/AddPrimaryModal.
 const HEADER_LOGO_PATH = "/logo_vortex.png";
 const TELEGRAM_SUPPORT_URL = "https://t.me/BaBa_MeDia_0";
 
-const fundTools = ["Convert Ad Account to Prepaid", "Add Balance From Card", "Enable Billing System"];
+const fundTools = ["Convert Ad Account to Prepaid", "Add Balance From Card"];
 const adsTools  = ["Standard", "Dark Post", "Private API", "Partnership", "PRO", "Boost Post",
                    "Vortex-001", "Vortex-002", "Partner 2", ...fundTools];
 
@@ -47,7 +47,7 @@ const mainCards = [
   { title: "Add Funds Metagraph",   type: "add_funds_meta",    logo: "/add_funds_meta.png" },
   { title: "Add Primary CC",        type: "add_primary_cc",    logo: "/add_primary_cc.png" },
   { title: "Switch BM to Old",      type: "switch_bm_old",     logo: "/switch_bm_old.png" },
-  { title: "Add Funds",             type: "funds" },
+  { title: "PREPAID TOOLS",         type: "funds",             logo: "/prepaid-tools.png" },
   { title: "Ads Creation",          type: "ads" },
   { title: "Add Cards",             type: "cards" },
   { title: "Add PayPal",            type: "paypal" },
@@ -1005,11 +1005,11 @@ export default function SecureDashboardApp() {
     );
   }
 
-  // ── Add Funds — standalone page (+ sub-routes) ────────────────
+  // ── Prepaid Tools — standalone page ───────────────────────────
   if (pathname === "/funds" || pathname.startsWith("/funds/")) {
     return (
       <ToolPage>
-        <FundsToolsModal onClose={() => navigateTo("/")} navigateTo={navigateTo} pathname={pathname} />
+        <FundsToolsModal onClose={() => navigateTo("/")} />
       </ToolPage>
     );
   }
