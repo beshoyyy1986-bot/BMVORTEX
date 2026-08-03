@@ -71,7 +71,7 @@ const sectionTitle = { fontSize:12.5, fontWeight:800, color:C.text, textTransfor
 const inputCls = { width:'100%', padding:'9px 12px', fontSize:12.5, borderRadius:8, fontFamily:"'Share Tech Mono',monospace", boxSizing:'border-box' };
 const selectCls = { ...inputCls };
 const labelCls = { fontSize:12.5, fontWeight:700, color:C.textSub, display:'block', marginBottom:5, fontFamily:"'Share Tech Mono',monospace", letterSpacing:'.06em' };
-const panelCls = { background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px', display:'flex', flexDirection:'column', gap:10, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' };
+const panelCls = { background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px', height:'100%', display:'flex', flexDirection:'column', gap:10, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' };
 
 // ── Sub-tool: CREATE BM ────────────────────────────────────────────────────
 function CreateBmTool({ cookies }) {
@@ -354,13 +354,6 @@ function AddInfoPanel({ cookies }) {
         يحدّث بيانات البيزنس والصورة والضرائب
       </div>
 
-      <div style={{ padding:'8px 10px', background:'rgba(0,0,0,.3)', border:`1px solid ${C.border}`, borderRadius:7, fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.9, color:C.text }}>
-        🏢 <span style={{ color:C.cyan }}>Name:</span> CONSELHO ESCOLAR VICE<br />
-        📍 <span style={{ color:C.cyan }}>City:</span> Guarani, Goiás, BR<br />
-        🪪 <span style={{ color:C.cyan }}>Tax ID:</span> 00658805000127<br />
-        🖼️ <span style={{ color:C.cyan }}>Photo:</span> صورة عشوائية من 5 صور
-      </div>
-
       <div>
         <label style={labelCls}>◈ Business ID</label>
         <input value={bmId} onChange={e => setBmId(e.target.value)} placeholder="يُكتشف تلقائياً" style={inputCls} disabled={running} />
@@ -441,7 +434,7 @@ export default function BmCreatorModal({ onClose }) {
         </div>
 
         {/* ── Three tools side-by-side ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:12, alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:12, alignItems:'stretch' }}>
           <CreateBmTool cookies={cookies} />
           <CreateAdAccTool cookies={cookies} />
           <AddInfoPanel cookies={cookies} />

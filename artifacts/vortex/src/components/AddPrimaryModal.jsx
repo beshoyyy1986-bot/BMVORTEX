@@ -166,13 +166,15 @@ SwitchOldTab.propTypes = { cookies: PropTypes.string };
 // ── Main modal ─────────────────────────────────────────────────────────────
 export default function AddPrimaryModal({ onClose, defaultTab = 'primary' }) {
   const [cookies, setCookies] = useState('');
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  // Each route mounts this modal as a standalone tool (primary | old) — no
+  // tab switcher, so the two tools never bleed into one another.
+  const activeTab = defaultTab;
 
-  const tabs = [
-    { key:'primary', label:'⭐ ADD PRIMARY CC', logo:'/add_primary_cc.png', glow:'rgba(245,158,11,0.5)' },
-    { key:'old',     label:'↩ SWITCH OLD BM',  logo:'/switch_bm_old.png',  glow:'rgba(255,107,26,0.5)' },
-  ];
-  const current = tabs.find(t => t.key === activeTab);
+  const meta = {
+    primary: { label:'⭐ ADD PRIMARY CC', logo:'/add_primary_cc.png', glow:'rgba(245,158,11,0.5)' },
+    old:     { label:'↩ SWITCH OLD BM',  logo:'/switch_bm_old.png',  glow:'rgba(255,107,26,0.5)' },
+  };
+  const current = meta[activeTab] || meta.primary;
 
   return (
     <div style={{ display:'flex', flex:1, minHeight:0, flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif" }}>
@@ -192,23 +194,14 @@ export default function AddPrimaryModal({ onClose, defaultTab = 'primary' }) {
 
       {/* Body */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 }}>
-        {/* Tabs */}
-        <div style={{ display:'flex', gap:6 }}>
-          {tabs.map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{ flex:1, padding:'8px 0', background: activeTab===t.key ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.04)', border:`1px solid ${activeTab===t.key ? 'rgba(245,158,11,0.4)' : C.border}`, borderRadius:8, color: activeTab===t.key ? C.gold : C.textSub, fontWeight:700, fontSize:12.5, cursor:'pointer', transition:'all .15s' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
         {/* Cookies */}
         <div style={{ background:C.panel, border:`1px solid rgba(245,158,11,0.45)`, borderRadius:12, padding:14, boxShadow:'0 1px 2px rgba(0,0,0,0.45), 0 6px 18px -8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
-          <div style={{ fontSize:11, fontWeight:700, color:C.gold, letterSpacing:'.08em', marginBottom:6, fontFamily:"'Share Tech Mono',monospace" }}>◈ COOKIES — مشترك للأداتين</div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.gold, letterSpacing:'.08em', marginBottom:6, fontFamily:"'Share Tech Mono',monospace" }}>◈ COOKIES</div>
           <textarea value={cookies} onChange={e=>setCookies(e.target.value)} placeholder="c_user=...; xs=...; datr=..." rows={3}
             style={{ ...inputCls, resize:'vertical', lineHeight:1.5 }} />
         </div>
 
-        {/* Active tab content */}
+        {/* Tool content */}
         {activeTab === 'primary'
           ? <AddPrimaryTab cookies={cookies} />
           : <SwitchOldTab cookies={cookies} />

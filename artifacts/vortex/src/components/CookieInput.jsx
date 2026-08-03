@@ -2,8 +2,7 @@
  * CookieInput — Unified cookie input component
  *
  * Used by every tool that needs Facebook session cookies.
- * Accepts raw string, JSON array (Playwright/EditThisCookie), or JSON object.
- * Has a built-in "Capture via Playwright" button that calls the server.
+ * Accepts raw string, JSON array (EditThisCookie), or JSON object.
  *
  * Props:
  *   value       {string}    — controlled value
@@ -32,103 +31,10 @@ function detectFormat(val) {
 }
 
 const FORMAT_LABELS = {
-  'json-array':  { label: 'JSON Array (Playwright)', color: 'text-emerald-400' },
-  'json-object': { label: 'JSON Object',             color: 'text-blue-400' },
-  'string':      { label: 'Cookie String',           color: 'text-violet-400' },
-  'unknown':     { label: 'صيغة غير معروفة',         color: 'text-amber-400' },
-};
-
-/* ─── PlaywrightModal ───────────────────────────────────────────────────── */
-
-function PlaywrightModal({ isDark, onCaptured, onClose }) {
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [url, setUrl]           = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [status, setStatus]     = useState('');
-
-  const cls = {
-    input:  `w-full rounded-xl border px-3 py-2 text-sm outline-none ${
-      isDark
-        ? 'border-slate-600/40 bg-[#1a1a1a] text-slate-100 placeholder-slate-500'
-        : 'border-slate-200 bg-white text-slate-900 placeholder-slate-400'
-    }`,
-    label: isDark ? 'text-slate-300' : 'text-slate-600',
-  };
-
-  async function capture() {
-    setLoading(true);
-    setStatus('جارٍ تشغيل المتصفح…');
-    try {
-      const r = await fetch(`${BASE_API}/playwright-capture`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email:    email.trim()    || undefined,
-          password: password.trim() || undefined,
-          url:      url.trim()      || undefined,
-        }),
-      }).then((x) => x.json());
-
-      if (!r.ok) {
-        setStatus(`❌ ${r.error}`);
-      } else {
-        setStatus(`✅ تم التقاط ${r.cookies.length} كوكيز`);
-        onCaptured(JSON.stringify(r.cookies, null, 2));
-        setTimeout(onClose, 800);
-      }
-    } catch (e) {
-      setStatus(`❌ خطأ: ${e.message}`);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 p-4">
-      <div className={`w-full max-w-md rounded-2xl border p-6 ${
-        isDark ? 'border-slate-600/30 bg-[#1a1a1a] text-slate-100' : 'border-slate-200 bg-white text-slate-900'
-      }`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-black">🎭 التقاط الكوكيز بـ Playwright</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-xl leading-none">✕</button>
-        </div>
-
-        <p className={`mb-4 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-          الأداة ستفتح متصفح خفي، تسجّل دخول (اختياري)، وترجع الكوكيز تلقائياً.
-        </p>
-
-        <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>إيميل فيسبوك (اختياري)</label>
-        <input value={email} onChange={e => setEmail(e.target.value)} type="email"
-          className={`mb-3 ${cls.input}`} placeholder="example@mail.com" />
-
-        <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>كلمة المرور (اختياري)</label>
-        <input value={password} onChange={e => setPassword(e.target.value)} type="password"
-          className={`mb-3 ${cls.input}`} placeholder="••••••••" />
-
-        <label className={`mb-1 block text-xs font-semibold ${cls.label}`}>الصفحة المستهدفة (اختياري)</label>
-        <input value={url} onChange={e => setUrl(e.target.value)} type="url"
-          className={`mb-4 ${cls.input}`} placeholder="https://www.facebook.com/ads/manager/" />
-
-        {status && (
-          <p className={`mb-3 text-sm ${status.startsWith('✅') ? 'text-emerald-400' : status.startsWith('❌') ? 'text-red-400' : 'text-blue-400'}`}>
-            {status}
-          </p>
-        )}
-
-        <button onClick={capture} disabled={loading}
-          className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-bold text-white hover:bg-violet-700 disabled:opacity-60">
-          {loading ? '⏳ جارٍ التشغيل…' : '🎭 التقاط الكوكيز'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-PlaywrightModal.propTypes = {
-  isDark:     PropTypes.bool,
-  onCaptured: PropTypes.func.isRequired,
-  onClose:    PropTypes.func.isRequired,
+  'json-array':  { label: 'JSON Array',           color: 'text-emerald-400' },
+  'json-object': { label: 'JSON Object',          color: 'text-blue-400' },
+  'string':      { label: 'Cookie String',        color: 'text-violet-400' },
+  'unknown':     { label: 'صيغة غير معروفة',      color: 'text-amber-400' },
 };
 
 /* ─── Main CookieInput ──────────────────────────────────────────────────── */
@@ -141,7 +47,6 @@ export default function CookieInput({
   disabled = false,
   onExtracted,
 }) {
-  const [showPlaywright, setShowPlaywright] = useState(false);
   const [verifying, setVerifying]           = useState(false);
   const [verifyResult, setVerifyResult]     = useState(null);
 
@@ -205,21 +110,6 @@ export default function CookieInput({
             </span>
           )}
 
-          {/* Playwright capture button */}
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => setShowPlaywright(true)}
-            title="التقاط الكوكيز عبر متصفح خفي"
-            className={`rounded-lg border px-2 py-0.5 text-[10px] font-bold transition-colors ${
-              isDark
-                ? 'border-violet-500/40 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20'
-                : 'border-violet-500/30 bg-violet-50 text-violet-600 hover:bg-violet-100'
-            }`}
-          >
-            🎭 Playwright
-          </button>
-
           {/* Verify button */}
           {value?.trim() && (
             <button
@@ -245,7 +135,7 @@ export default function CookieInput({
         disabled={disabled}
         rows={4}
         className={cls.textarea}
-        placeholder={`الصيغ المقبولة:\n• String:  c_user=123; xs=abc; ...\n• JSON Array (Playwright): [{\"name\":\"c_user\",\"value\":\"123\"}, ...]\n• JSON Object: {\"c_user\": \"123\"}`}
+        placeholder={`الصيغ المقبولة:\n• String:  c_user=123; xs=abc; ...\n• JSON Array: [{\"name\":\"c_user\",\"value\":\"123\"}, ...]\n• JSON Object: {\"c_user\": \"123\"}`}
         dir="ltr"
         spellCheck={false}
       />
@@ -274,15 +164,6 @@ export default function CookieInput({
             <p>❌ {verifyResult.error}</p>
           )}
         </div>
-      )}
-
-      {/* ── Playwright modal ── */}
-      {showPlaywright && (
-        <PlaywrightModal
-          isDark={isDark}
-          onCaptured={(json) => { onChange(json); setShowPlaywright(false); }}
-          onClose={() => setShowPlaywright(false)}
-        />
       )}
     </div>
   );
