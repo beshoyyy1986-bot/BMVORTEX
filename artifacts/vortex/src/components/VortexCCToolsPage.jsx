@@ -151,7 +151,7 @@ function BinChecker() {
     s === "amex" ? "#60a5fa" : G.accentHex;
 
   return (
-    <div className="mx-auto max-w-lg space-y-5">
+    <div className="space-y-5">
       <div className="flex gap-2">
         <input
           value={bin}
@@ -179,7 +179,7 @@ function BinChecker() {
       )}
 
       {result && (
-        <div className="rounded-2xl border border-emerald-500/20 bg-[#141820] p-5">
+        <div className="rounded-2xl border border-emerald-500/20 bg-black/25 p-5">
           {/* Brand header */}
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-2xl border border-emerald-500/20">
@@ -296,7 +296,7 @@ function GenCC() {
   const years  = Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i));
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
+    <div className="space-y-5">
 
       {/* Pattern input */}
       <div>
@@ -333,7 +333,7 @@ function GenCC() {
       </div>
 
       {/* Count + Expiry + CVV */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <div>
           <label className="mb-1.5 block text-xs font-semibold text-slate-400">Count</label>
           <input
@@ -398,7 +398,7 @@ function GenCC() {
       )}
 
       {output.length > 0 && (
-        <div className="rounded-2xl border border-white/8 bg-[#141820] p-4">
+        <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
           <div className="mb-3 flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400">
               {output.length} card(s) · <span className="font-mono text-slate-500">NUMBER|MM/YYYY|CVV</span>
@@ -425,18 +425,36 @@ function GenCC() {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-const TABS = [
-  { id: "bin", label: "🔍 BIN Checker" },
-  { id: "gen", label: "⚡ Gen CC"      },
-];
+
+/** Card wrapper giving each tool its own titled panel */
+function ToolCard({ icon, title, subtitle, children }) {
+  return (
+    <section className="flex flex-col rounded-2xl border border-white/8 bg-[#111318] shadow-lg shadow-black/30">
+      <div className="flex items-center gap-3 border-b border-white/8 px-5 py-3.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-base">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-black text-white">{title}</div>
+          <div className="truncate text-[11px] text-slate-500">{subtitle}</div>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+ToolCard.propTypes = {
+  icon:     PropTypes.node,
+  title:    PropTypes.string,
+  subtitle: PropTypes.string,
+  children: PropTypes.node,
+};
 
 export default function VortexCCToolsPage({ onClose }) {
-  const [tab, setTab] = useState("bin");
-
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col bg-[#0a0c10] text-white">
 
-      {/* ── Header (logo + nav + tabs all in one bar) ── */}
+      {/* ── Header (logo + nav) ── */}
       <header className="flex items-center gap-3 border-b border-white/8 bg-[#111318] px-5 shadow-sm"
               style={{ minHeight: "52px" }}>
 
@@ -453,34 +471,18 @@ export default function VortexCCToolsPage({ onClose }) {
         <span className="text-sm font-black text-white shrink-0">
           Vortex <span className="text-emerald-400">CC Tools</span>
         </span>
-
-        <div className="h-4 w-px bg-white/10 shrink-0" />
-
-        {/* Tabs — inside the header bar */}
-        <nav className="flex h-full items-end gap-1">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`relative h-full px-4 pb-0 text-sm font-bold transition flex items-center ${
-                tab === t.id
-                  ? "text-emerald-400"
-                  : "text-slate-500 hover:text-slate-300"
-              }`}
-              style={{ paddingBottom: "0" }}
-            >
-              {t.label}
-              {tab === t.id && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-emerald-400" />
-              )}
-            </button>
-          ))}
-        </nav>
       </header>
 
-      {/* ── Content ── */}
+      {/* ── Content — both tools side by side ── */}
       <main className="flex-1 overflow-y-auto p-6">
-        {tab === "bin" ? <BinChecker /> : <GenCC />}
+        <div className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-5 lg:grid-cols-2">
+          <ToolCard icon="🔍" title="BIN Checker" subtitle="Lookup issuer, brand & country for any BIN">
+            <BinChecker />
+          </ToolCard>
+          <ToolCard icon="⚡" title="Gen CC" subtitle="Generate Luhn-valid numbers from a pattern">
+            <GenCC />
+          </ToolCard>
+        </div>
       </main>
     </div>
   );

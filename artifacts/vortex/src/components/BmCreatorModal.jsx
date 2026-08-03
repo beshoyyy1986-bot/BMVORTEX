@@ -291,8 +291,8 @@ function CreateAdAccTool({ cookies }) {
 }
 CreateAdAccTool.propTypes = { cookies: PropTypes.string };
 
-// ── Sub-tool: ADD INFO BM (inline panel, toggled) ─────────────────────────
-function AddInfoPanel({ cookies, onClose }) {
+// ── Sub-tool: ADD INFO BM ──────────────────────────────────────────────────
+function AddInfoPanel({ cookies }) {
   const [bmId, setBmId]       = useState('');
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -348,11 +348,11 @@ function AddInfoPanel({ cookies, onClose }) {
   }
 
   return (
-    <div style={{ ...panelCls, border:`1px solid rgba(245,158,11,0.35)`, background:'rgba(245,158,11,0.04)', position:'relative' }}>
-      {/* Close button */}
-      <button onClick={onClose} style={{ position:'absolute', top:8, left:8, background:'transparent', border:'none', color:C.textMuted, cursor:'pointer', fontSize:13, lineHeight:1 }}>✕</button>
-
-      <div style={{ ...sectionTitle, color:C.gold, justifyContent:'center' }}><SectionBar />⚡ ADD INFO BM</div>
+    <div style={panelCls}>
+      <div style={{ ...sectionTitle, color:C.gold }}><SectionBar />⚡ ADD INFO BM</div>
+      <div style={{ padding:'6px 8px', background:'rgba(245,158,11,.06)', border:'1px solid rgba(245,158,11,.2)', borderRadius:7, fontSize:11, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>
+        يحدّث بيانات البيزنس والصورة والضرائب
+      </div>
 
       <div style={{ padding:'8px 10px', background:'rgba(0,0,0,.3)', border:`1px solid ${C.border}`, borderRadius:7, fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.9, color:C.text }}>
         🏢 <span style={{ color:C.cyan }}>Name:</span> CONSELHO ESCOLAR VICE<br />
@@ -369,15 +369,17 @@ function AddInfoPanel({ cookies, onClose }) {
       {(running || progress > 0) && <ProgressBar value={progress} />}
       {result && <StatusTag type={result.type}>{result.msg}</StatusTag>}
 
-      <button onClick={handleRun} disabled={running}
-        style={{ width:'100%', padding:'9px', borderRadius:7, fontWeight:700, fontSize:12, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.gold},${C.goldH})`, color:'#111', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:6, boxShadow:`0 2px 14px ${C.goldGlow}` }}>
-        {running ? <><Spin />يعمل...</> : '⚡ UPDATE BM INFO'}
-      </button>
+      <div style={{ display:'flex', gap:6 }}>
+        <button onClick={handleRun} disabled={running}
+          style={{ flex:1, padding:'8px', borderRadius:7, fontWeight:700, fontSize:12.5, cursor:running?'not-allowed':'pointer', border:'none', background:`linear-gradient(135deg,${C.gold},${C.goldH})`, color:'#111', opacity:running?.65:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5, boxShadow:`0 2px 10px ${C.goldGlow}` }}>
+          {running ? <><Spin />يعمل...</> : '⚡ UPDATE INFO'}
+        </button>
+      </div>
 
       {logs.length > 0 && (
-        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:90, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
-          {logs.slice(-30).reverse().map((l, i) => (
-            <div key={i} style={{ color: l.type==='success'?C.green:l.type==='error'?C.red:l.type==='warn'?C.warn:C.cyan }}>
+        <div style={{ background:'#08090c', border:`1px solid ${C.border}`, borderRadius:7, padding:'6px 8px', maxHeight:100, overflowY:'auto', fontFamily:"'Share Tech Mono',monospace", fontSize:11, lineHeight:1.7 }}>
+          {logs.slice(-40).reverse().map((l, i) => (
+            <div key={i} style={{ color: l.type==='success'?C.green:l.type==='error'?C.red:l.type==='warn'?C.warn:C.cyan, borderBottom:`1px solid rgba(255,255,255,.03)` }}>
               [{l.time}] {l.msg}
             </div>
           ))}
@@ -386,12 +388,11 @@ function AddInfoPanel({ cookies, onClose }) {
     </div>
   );
 }
-AddInfoPanel.propTypes = { cookies: PropTypes.string, onClose: PropTypes.func };
+AddInfoPanel.propTypes = { cookies: PropTypes.string };
 
 // ── Main modal ─────────────────────────────────────────────────────────────
 export default function BmCreatorModal({ onClose }) {
-  const [cookies, setCookies]         = useState('');
-  const [showAddInfo, setShowAddInfo] = useState(false);
+  const [cookies, setCookies] = useState('');
 
   return (
     <div style={{ display:'flex', flex:1, minHeight:0, width:'100%', flexDirection:'column', background:C.bg, fontFamily:"'Tajawal','Segoe UI',sans-serif", fontSize:13 }} dir="rtl">
@@ -439,36 +440,12 @@ export default function BmCreatorModal({ onClose }) {
           />
         </div>
 
-        {/* ── Two tools side-by-side ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        {/* ── Three tools side-by-side ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3, minmax(0, 1fr))', gap:12, alignItems:'start' }}>
           <CreateBmTool cookies={cookies} />
           <CreateAdAccTool cookies={cookies} />
+          <AddInfoPanel cookies={cookies} />
         </div>
-
-        {/* ── ADD INFO — centered button / panel ── */}
-        {!showAddInfo ? (
-          <div style={{ display:'flex', justifyContent:'center' }}>
-            <button
-              onClick={() => setShowAddInfo(true)}
-              style={{
-                padding:'10px 32px', borderRadius:10, fontWeight:700, fontSize:12, cursor:'pointer',
-                border:`1px solid rgba(245,158,11,0.4)`,
-                background:`linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.06))`,
-                color:C.gold,
-                display:'flex', alignItems:'center', gap:8,
-                boxShadow:`0 0 18px rgba(245,158,11,0.12)`,
-                transition:'all .2s',
-              }}
-            >
-              ⚡ ADD INFO BM
-              <span style={{ fontSize:11.5, color:C.textMuted, fontFamily:"'Share Tech Mono',monospace" }}>يحدث بيانات البيزنس</span>
-            </button>
-          </div>
-        ) : (
-          <div style={{ maxWidth:480, margin:'0 auto', width:'100%' }}>
-            <AddInfoPanel cookies={cookies} onClose={() => setShowAddInfo(false)} />
-          </div>
-        )}
 
       </div>
     </div>
