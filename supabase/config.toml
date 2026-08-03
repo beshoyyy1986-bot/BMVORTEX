@@ -1,4 +1,4 @@
-project_id = "rknheuuyxbvppuxkwhue"
+project_id = "kzxsszdvhwoaasetauhj"
 
 [auth]
 site_url = "https://bmvortex.vercel.app"
@@ -32,3 +32,8 @@ content_path = "./supabase/templates/confirmation.html"
 [auth.email.template.recovery]
 subject = "إعادة تعيين كلمة المرور — VORTEX"
 content_path = "./supabase/templates/recovery.html"
+
+# Vector buckets are a paid-tier feature and this project is on the free plan;
+# leaving the CLI default (true) makes `supabase config push` fail with a 402.
+[storage.vector]
+enabled = false

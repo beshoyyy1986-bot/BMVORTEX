@@ -1,24 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-// ── Supabase credentials ───────────────────────────────────────────────────────
-// Active project: rknheuuyxbvppuxkwhue
-//
-// Priority: env vars (VITE_SUPABASE_*) → embedded fallbacks.
-// Both env vars are already set in Vercel/preview, so those always win.
-// The fallbacks keep the app working even on a fresh clone with no env file.
-// The anon/publishable key is safe to expose in client-side code.
+// Both vars are set in Vercel for Production, Preview and Development, and in
+// .env.local for local dev. There is deliberately no embedded fallback: an
+// earlier version hardcoded a project ref and anon key, and when that project
+// was deleted the fallback kept the client "working" against a dead host, so
+// every query failed at runtime instead of at startup.
 
-const _ref = 'rknheuuyxbvppuxkwhue';
-const supabaseUrl =
-  import.meta.env.VITE_SUPABASE_URL ||
-  `https://${_ref}.supabase.co`;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Publishable (anon) key — split across two vars so static secret scanners
-// don't flag it. Safe for the browser. Verified working against the URL above.
-const _k1 = 'sb_publishable_YtIjidwl';
-const _k2 = 'NuBgRU8InYdGpg_rguyZpwX';
-const supabaseAnonKey =
-  import.meta.env.VITE_SUPABASE_ANON_KEY || (_k1 + _k2);
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    '[VORTEX] Missing VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY. ' +
+      'Set both in .env.local for local dev, or in the Vercel project env vars.'
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

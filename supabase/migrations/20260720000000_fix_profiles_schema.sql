@@ -1,10 +1,20 @@
 -- Fix profiles schema for the admin panel.
 -- Adds columns adminRoutes.js depends on, an auto-profile trigger, and RLS policies.
 
+-- ── Base table ────────────────────────────────────────────────────────────────
+-- This migration predates 20260723000000_complete_schema.sql, which is where the
+-- table was originally declared. Declaring it here too keeps the history
+-- replayable from an empty database.
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email text,
+  created_at timestamptz DEFAULT now()
+);
+
 -- ── Add missing columns to profiles ───────────────────────────────────────────
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS subscription_expires_at timestamptz,
-  ADD COLUMN IF NOT EXISTS allowed_types jsonb DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS allowed_types text[] DEFAULT '{}'::text[],
   ADD COLUMN IF NOT EXISTS is_frozen boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS current_session_id text,
   ADD COLUMN IF NOT EXISTS fingerprint text,
@@ -24,7 +34,7 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
     'user',
     'none',
-    '[]'::jsonb
+    '{}'::text[]
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;

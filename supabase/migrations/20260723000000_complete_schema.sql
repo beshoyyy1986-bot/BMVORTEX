@@ -1,13 +1,13 @@
 -- ============================================================
 --  VORTEX BM — Complete schema migration
---  Project : bptdnmwgcnkmdeefscmh
 --  Date    : 2026-07-23
 --  Safe to run multiple times (fully idempotent).
 --
---  HOW TO APPLY:
---    1. Open https://supabase.com/dashboard/project/bptdnmwgcnkmdeefscmh/sql
---    2. Paste this entire file and click "Run".
---    3. Verify the SELECT at the very bottom shows both owner accounts.
+--  Applied by `supabase db push`, like every other migration in
+--  this directory. The original header named a specific project
+--  and told you to paste this into the dashboard SQL editor by
+--  hand; that project no longer exists and hand-applying would
+--  desync supabase_migrations.schema_migrations.
 -- ============================================================
 
 

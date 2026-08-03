@@ -30,4 +30,17 @@ create policy site_settings_public_read
   using (true);
 
 -- ── Realtime: push changes to every connected visitor instantly ───────────────
-alter publication supabase_realtime add table public.site_settings;
+-- ALTER PUBLICATION ... ADD TABLE errors if the table is already a member, so
+-- guard on pg_publication_tables to keep this migration re-runnable.
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'site_settings'
+  ) then
+    alter publication supabase_realtime add table public.site_settings;
+  end if;
+end;
+$$;
