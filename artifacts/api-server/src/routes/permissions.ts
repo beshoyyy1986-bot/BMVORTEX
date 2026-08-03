@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { GrantPermissionsBody } from "@workspace/api-zod";
-import { extractFbTokens, TokenExtractionError } from "../lib/meta-tokens";
+// @ts-ignore — unified extraction used by all other tools (getSession/playwright-first)
+import { getSession } from "../utils/metaTokens.js";
 
 const router: IRouter = Router();
 
@@ -34,19 +35,22 @@ router.post("/grant-permissions", async (req, res): Promise<void> => {
 
   // fb_dtsg / lsd are short-lived anti-CSRF tokens tied to the session,
   // so we pull them fresh from the cookies for every request.
-  let fbDtsg: string;
-  let lsd: string;
-  try {
-    ({ fbDtsg, lsd } = await extractFbTokens(cookies, businessId));
-  } catch (err) {
-    if (err instanceof TokenExtractionError) {
-      res.status(400).json({ error: err.message });
-      return;
-    }
-    req.log.error({ err }, "Error extracting fb tokens");
-    res.status(500).json({ error: "فشل استخراج التوكنات من الكوكيز" });
+  // Uses the same unified getSession() extractor as every other Meta tool
+  // (Playwright-first, multi-URL HTTP fallback) rather than a single strict URL.
+  const sessionUrl = businessId
+    ? `https://business.facebook.com/settings/people?business_id=${encodeURIComponent(businessId)}`
+    : undefined;
+  const session = await getSession(cookies, sessionUrl);
+
+  if (!session?.dtsg) {
+    res.status(400).json({
+      error: "تعذر استخراج fb_dtsg / lsd من الكوكيز، تأكد من صلاحية الكوكيز",
+    });
     return;
   }
+
+  const fbDtsg: string = session.dtsg;
+  const lsd: string = session.lsd || "";
 
   // Build the variables for BusinessAccountPermissionTasksForUserModalMutation
   const variables = {
