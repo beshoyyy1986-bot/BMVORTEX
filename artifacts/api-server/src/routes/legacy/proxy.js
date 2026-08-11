@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProxyManager } from '../utils/proxyManager.js';
+import { getProxyManager, parseProxyUrl, detectProxyType, parseProxyComponents } from '../utils/proxyManager.js';
 
 const router = express.Router();
 
@@ -212,6 +212,116 @@ router.get('/stats', (req, res) => {
       stats,
       timestamp: new Date().toISOString()
     });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Quick proxy check — test if a proxy actually works
+ * POST /api/proxy/quick-check
+ */
+router.post('/quick-check', async (req, res) => {
+  try {
+    const { proxy } = req.body;
+    if (!proxy) {
+      return res.status(400).json({ success: false, error: 'proxy URL is required' });
+    }
+
+    const normalized = parseProxyUrl(proxy);
+    if (!normalized) {
+      return res.json({
+        success: false,
+        status: 'invalid_url',
+        reason: 'Proxy URL format is not recognised',
+        proxy_info: {
+          status: 'invalid',
+          type: null,
+          host: null,
+          port: null,
+          authenticated: false,
+        },
+      });
+    }
+
+    const components = parseProxyComponents(normalized);
+    if (!components) {
+      return res.json({
+        success: false,
+        status: 'invalid_url',
+        reason: 'Could not parse proxy URL',
+        proxy_info: {
+          status: 'invalid',
+          type: detectProxyType(normalized),
+          host: null,
+          port: null,
+          authenticated: false,
+        },
+      });
+    }
+
+    const manager = getProxyManager();
+    const startTime = Date.now();
+
+    try {
+      const config = manager.createAxiosConfig('custom', normalized);
+      const axios = (await import('axios')).default;
+
+      const response = await axios.get('https://httpbin.org/ip', {
+        ...config,
+        timeout: 15000,
+      });
+
+      const responseTime = Date.now() - startTime;
+      const ip = response.data?.origin || null;
+
+      res.json({
+        success: true,
+        status: 'active',
+        proxy_info: {
+          status: 'active',
+          type: detectProxyType(normalized),
+          host: components.host,
+          port: components.port,
+          authenticated: components.authenticated,
+          ip,
+          responseTime,
+        },
+      });
+    } catch (error) {
+      const errorMsg = error.message || 'Connection failed';
+      const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT';
+      const isRefused = error.code === 'ECONNREFUSED';
+      const isAuth = error.response?.status === 407;
+
+      let status = 'disconnected';
+      let reason = errorMsg;
+
+      if (isTimeout) {
+        status = 'disconnected';
+        reason = 'Connection timed out';
+      } else if (isRefused) {
+        status = 'disconnected';
+        reason = 'Connection refused — proxy server may be down';
+      } else if (isAuth) {
+        status = 'disconnected';
+        reason = 'Authentication failed — check username/password';
+      }
+
+      res.json({
+        success: false,
+        status,
+        reason,
+        proxy_info: {
+          status: 'disconnected',
+          type: detectProxyType(normalized),
+          host: components.host,
+          port: components.port,
+          authenticated: components.authenticated,
+          responseTime: Date.now() - startTime,
+        },
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

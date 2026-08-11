@@ -1,34 +1,14 @@
 import express from 'express';
 import axios from 'axios';
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import { getProxyManager } from '../utils/proxyManager.js';
+import { getProxyConfig, buildProxyInfo } from '../utils/proxyManager.js';
 import { resolveFbDtsg, extractActorId, buildCookieHeader } from '../utils/cookieParser.js';
 
 const router = express.Router();
 const FB_GRAPHQL_URL = 'https://business.facebook.com/api/graphql';
 
-function getProxyConfig(proxyOption, customProxy) {
-  const proxyManager = getProxyManager();
-  let agent = null;
-
-  if (proxyOption === 'custom' && customProxy) {
-    try {
-      agent = new HttpsProxyAgent(customProxy);
-    } catch (e) {
-      console.warn('Invalid custom proxy:', e.message);
-    }
-  } else if (proxyOption === 'random') {
-    const proxy = proxyManager.getRandomProxy();
-    if (proxy) {
-      try {
-        agent = new HttpsProxyAgent(proxy);
-      } catch (e) {
-        console.warn('Invalid random proxy:', e.message);
-      }
-    }
-  }
-
-  return agent ? { httpsAgent: agent, proxy: false } : {};
+/** Helper to attach proxy_info to every response */
+function withProxyInfo(req, base) {
+  return { ...base, proxy_info: buildProxyInfo(req.body.proxy_option, req.body.proxy) };
 }
 
 
@@ -93,35 +73,35 @@ router.post('/convert-prepaid', async (req, res) => {
 
     if (response.data?.data?.billable_account_prepay_convert?.result) {
       const result = response.data.data.billable_account_prepay_convert.result;
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: result === 'COMPLETED' || result === 'SUCCESS',
         result,
         message: result === 'COMPLETED' || result === 'SUCCESS'
           ? 'Account converted to prepaid successfully'
           : `Conversion result: ${result}`,
         raw: response.data
-      });
+      }));
     }
 
     if (response.data?.errors) {
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: false,
         error: response.data.errors.map(e => e.message || e.description).join('; '),
         raw: response.data
-      });
+      }));
     }
 
-    res.json({
+    res.json(withProxyInfo(req, {
       success: false,
       error: 'Unexpected response from Facebook',
       raw: response.data
-    });
+    }));
   } catch (err) {
     console.error('[FUNDS API] Convert prepaid error:', err.message);
-    res.status(500).json({
+    res.status(500).json(withProxyInfo(req, {
       success: false,
       error: err.message || 'Internal server error'
-    });
+    }));
   }
 });
 
@@ -190,18 +170,18 @@ router.post('/fetch-cards', async (req, res) => {
         text: `${m.credential.card_association_name || 'Card'} • ${m.credential.last_four_digits || 'xxxx'}${m.usability ? ` (${m.usability})` : ''}`
       }));
 
-    res.json({
+    res.json(withProxyInfo(req, {
       success: true,
       cards,
       count: cards.length,
       raw: response.data
-    });
+    }));
   } catch (err) {
     console.error('[FUNDS API] Fetch cards error:', err.message);
-    res.status(500).json({
+    res.status(500).json(withProxyInfo(req, {
       success: false,
       error: err.message || 'Internal server error'
-    });
+    }));
   }
 });
 
@@ -267,35 +247,35 @@ router.post('/enable-billing', async (req, res) => {
 
     if (response.data?.data?.billable_account_billing_settings_update?.result) {
       const result = response.data.data.billable_account_billing_settings_update.result;
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: result === 'COMPLETED' || result === 'SUCCESS',
         result,
         message: result === 'COMPLETED' || result === 'SUCCESS'
           ? 'Billing system enabled successfully'
           : `Billing activation result: ${result}`,
         raw: response.data
-      });
+      }));
     }
 
     if (response.data?.errors) {
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: false,
         error: response.data.errors.map(e => e.message || e.description).join('; '),
         raw: response.data
-      });
+      }));
     }
 
-    res.json({
+    res.json(withProxyInfo(req, {
       success: false,
       error: 'Failed to enable billing system',
       raw: response.data
-    });
+    }));
   } catch (err) {
     console.error('[FUNDS API] Enable billing error:', err.message);
-    res.status(500).json({
+    res.status(500).json(withProxyInfo(req, {
       success: false,
       error: err.message || 'Internal server error'
-    });
+    }));
   }
 });
 
@@ -377,33 +357,33 @@ router.post('/add-funds', async (req, res) => {
     });
 
     if (response.data?.data?.billable_account_prepay_add_funds?.result === 'COMPLETED') {
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: true,
         result: 'COMPLETED',
         message: `$${amount} added successfully`,
         raw: response.data
-      });
+      }));
     }
 
     if (response.data?.errors) {
-      return res.json({
+      return res.json(withProxyInfo(req, {
         success: false,
         error: response.data.errors.map(e => e.message || e.description).join('; '),
         raw: response.data
-      });
+      }));
     }
 
-    res.json({
+    res.json(withProxyInfo(req, {
       success: false,
       error: 'Fund addition failed',
       raw: response.data
-    });
+    }));
   } catch (err) {
     console.error('[FUNDS API] Add funds error:', err.message);
-    res.status(500).json({
+    res.status(500).json(withProxyInfo(req, {
       success: false,
       error: err.message || 'Internal server error'
-    });
+    }));
   }
 });
 

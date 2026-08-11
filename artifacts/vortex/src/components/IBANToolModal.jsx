@@ -4,6 +4,7 @@ import ProxySelector from './ProxySelector.jsx';
 const IBANToolModal = ({ onClose, closeLabel }) => {
     const [activeTab, setActiveTab] = useState('generate'); // generate, add, status
     const [proxyConfig, setProxyConfig] = useState({ option: 'none', proxy: null });
+    const [proxyInfo, setProxyInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('');
@@ -90,6 +91,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
+        setProxyInfo(null);
 
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
@@ -104,6 +106,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
 
             if (result.success) {
                 showMessage(result.message || 'IBAN added successfully!', 'success');
@@ -121,6 +124,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
+        setProxyInfo(null);
 
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
@@ -135,6 +139,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
             setIbanStatus(result);
 
             if (result.success) {
@@ -256,7 +261,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
 
                 {activeTab === 'add' && (
                     <div className="space-y-4">
-                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" />
+                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" proxyInfo={proxyInfo} />
                         <form onSubmit={addIBANToAdAccount} className="space-y-4">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-400">Access Token</label>
@@ -318,7 +323,7 @@ const IBANToolModal = ({ onClose, closeLabel }) => {
 
                 {activeTab === 'status' && (
                     <div className="space-y-4">
-                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" />
+                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" proxyInfo={proxyInfo} />
                         <form onSubmit={checkStatus} className="space-y-4">
                             <div>
                                 <label className="mb-1 block text-xs font-semibold text-slate-400">Access Token</label>

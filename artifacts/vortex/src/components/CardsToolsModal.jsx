@@ -13,6 +13,7 @@ const btnCls   = "w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 p
 
 export default function CardsToolsModal({ onClose, navigateTo, pathname }) {
   const [proxy, setProxy]               = useState({ option: "none", proxy: null });
+  const [proxyInfo, setProxyInfo]       = useState(null);
   const [loading, setLoading]           = useState(false);
   const [message, setMessage]           = useState("");
   const [messageType, setMessageType]   = useState("");
@@ -55,7 +56,7 @@ export default function CardsToolsModal({ onClose, navigateTo, pathname }) {
 
   const handleSubmit = async (e, toolId) => {
     e.preventDefault();
-    setLoading(true); setMessage("");
+    setLoading(true); setMessage(""); setProxyInfo(null);
     const data = Object.fromEntries(new FormData(e.target).entries());
     data.proxy_option = proxy.option;
     data.custom_proxy = proxy.proxy;
@@ -70,6 +71,7 @@ export default function CardsToolsModal({ onClose, navigateTo, pathname }) {
     try {
       const res    = await fetch(endpoints[toolId], { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
       const result = await res.json();
+      if (result.proxy_info) setProxyInfo(result.proxy_info);
       if (result.success) {
         showSuccessPopup(`✅ ${result.message || "Operation completed successfully!"}`);
         if (toolId === "fetch-from-bm" && result.cards) setFetchedCards(result.cards);
@@ -234,7 +236,7 @@ export default function CardsToolsModal({ onClose, navigateTo, pathname }) {
               <p className="mb-5 text-xs text-slate-500">{activeGw.desc}</p>
 
               <div className="mb-4 rounded-xl border border-white/8 bg-[#141820] p-3">
-                <ProxySelector onProxyChange={setProxy} />
+                <ProxySelector onProxyChange={setProxy} proxyInfo={proxyInfo} />
               </div>
 
               {message && (

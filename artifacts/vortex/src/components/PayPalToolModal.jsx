@@ -4,6 +4,7 @@ import ProxySelector from './ProxySelector.jsx';
 const PayPalToolModal = ({ onClose, closeLabel }) => {
     const [step, setStep] = useState('input'); // input, session, popup, verify, complete
     const [proxyConfig, setProxyConfig] = useState({ option: 'none', proxy: null });
+    const [proxyInfo, setProxyInfo] = useState(null);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState('');
@@ -31,6 +32,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
         e.preventDefault();
         setLoading(true);
         setMessage('');
+        setProxyInfo(null);
 
         const data = {
             access_token: formData.access_token,
@@ -47,6 +49,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
 
             if (result.success) {
                 setSessionData(result.sessionData);
@@ -99,6 +102,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
     const verifyPayPalLink = async () => {
         setLoading(true);
         setMessage('');
+        setProxyInfo(null);
 
         try {
             const response = await fetch('/api/paypal/verify', {
@@ -113,6 +117,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
             setVerificationResult(result);
 
             if (result.success) {
@@ -136,6 +141,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
     const forceComplete = async () => {
         setLoading(true);
         setMessage('');
+        setProxyInfo(null);
 
         try {
             const response = await fetch('/api/paypal/complete', {
@@ -151,6 +157,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
 
             if (result.success) {
                 setStep('complete');
@@ -171,6 +178,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
         }
 
         setLoading(true);
+        setProxyInfo(null);
         try {
             const response = await fetch('/api/paypal/disconnect', {
                 method: 'POST',
@@ -185,6 +193,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
             });
 
             const result = await response.json();
+            if (result.proxy_info) setProxyInfo(result.proxy_info);
             if (result.success) {
                 showMessage('PayPal disconnected successfully', 'success');
                 setStep('input');
@@ -227,7 +236,7 @@ const PayPalToolModal = ({ onClose, closeLabel }) => {
                                 className="w-full rounded-xl border border-blue-400/15 bg-black/25 px-4 py-3 text-sm text-slate-100 outline-none"
                             />
                         </div>
-                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" />
+                        <ProxySelector onProxyChange={handleProxyChange} defaultOption="none" proxyInfo={proxyInfo} />
                         <button type="submit" disabled={loading}
                             className="w-full rounded-xl bg-blue-500 px-5 py-3 text-sm font-bold text-white disabled:opacity-60">
                             {loading ? 'Generating...' : 'Generate PayPal Session'}

@@ -14,6 +14,7 @@ const btnCls   = "w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 p
 
 export default function AdvertisingToolsModal({ onClose, navigateTo, pathname }) {
   const [proxy, setProxy]         = useState({ option: "none", proxy: null });
+  const [proxyInfo, setProxyInfo] = useState(null);
   const [loading, setLoading]     = useState(false);
   const [msg, setMsg]             = useState("");
   const [msgType, setMsgType]     = useState("");
@@ -32,7 +33,7 @@ export default function AdvertisingToolsModal({ onClose, navigateTo, pathname })
 
   const submit = async (e, toolId) => {
     e.preventDefault();
-    setLoading(true); setMsg(""); setResult(null); setShowSuccess(false);
+    setLoading(true); setMsg(""); setResult(null); setShowSuccess(false); setProxyInfo(null);
 
     const data = Object.fromEntries(new FormData(e.target).entries());
     data.proxy_option = proxy.option;
@@ -52,6 +53,7 @@ export default function AdvertisingToolsModal({ onClose, navigateTo, pathname })
         body: JSON.stringify(data),
       });
       const json = await res.json();
+      if (json.proxy_info) setProxyInfo(json.proxy_info);
       if (json.success) { setResult(json); setShowSuccess(true); }
       else showMessage(json.error || "Failed", "error");
     } catch (err) { showMessage(err.message, "error"); }
@@ -68,6 +70,7 @@ export default function AdvertisingToolsModal({ onClose, navigateTo, pathname })
         body: JSON.stringify({ cookies: result?.cookies || "", ad_id: adId, proxy_option: proxy.option, custom_proxy: proxy.proxy }),
       });
       const json = await res.json();
+      if (json.proxy_info) setProxyInfo(json.proxy_info);
       if (json.success) setShowSuccess(true);
       else showMessage(json.error, "error");
     } catch (err) { showMessage(err.message, "error"); }
@@ -222,7 +225,7 @@ export default function AdvertisingToolsModal({ onClose, navigateTo, pathname })
               <p className="mb-5 text-xs text-slate-500">{activeGw.desc}</p>
 
               <div className="mb-4 rounded-xl border border-white/8 bg-[#141820] p-3">
-                <ProxySelector onProxyChange={setProxy} />
+                <ProxySelector onProxyChange={setProxy} proxyInfo={proxyInfo} />
               </div>
 
               {msg && (

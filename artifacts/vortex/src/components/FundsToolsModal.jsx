@@ -32,13 +32,14 @@ ToolCard.propTypes = {
 /** Shared submit + feedback plumbing for a single funds tool */
 function useFundsTool(endpoint) {
   const [proxy, setProxy]     = useState({ option: "none", proxy: null });
+  const [proxyInfo, setProxyInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg]         = useState("");
   const [msgType, setMsgType] = useState("");
   const [result, setResult]   = useState(null);
 
   const submit = async (payload) => {
-    setLoading(true); setMsg(""); setResult(null);
+    setLoading(true); setMsg(""); setResult(null); setProxyInfo(null);
     try {
       const res  = await fetch(endpoint, {
         method: "POST",
@@ -46,6 +47,7 @@ function useFundsTool(endpoint) {
         body: JSON.stringify({ ...payload, proxy_option: proxy.option, custom_proxy: proxy.proxy }),
       });
       const data = await res.json();
+      if (data.proxy_info) setProxyInfo(data.proxy_info);
       if (data.success) { setResult(data); setMsg("Done!"); setMsgType("success"); }
       else { setMsg(data.error || "Failed"); setMsgType("error"); }
     } catch (err) {
@@ -55,7 +57,7 @@ function useFundsTool(endpoint) {
     }
   };
 
-  return { setProxy, loading, msg, msgType, result, submit };
+  return { setProxy, proxyInfo, loading, msg, msgType, result, submit };
 }
 
 function Feedback({ msg, msgType, result }) {
@@ -87,11 +89,11 @@ Feedback.propTypes = {
 function ConvertToPrepaid() {
   const [cookies, setCookies]         = useState("");
   const [adAccountId, setAdAccountId] = useState("");
-  const { setProxy, loading, msg, msgType, result, submit } = useFundsTool("/api/funds/convert-prepaid");
+  const { setProxy, proxyInfo, loading, msg, msgType, result, submit } = useFundsTool("/api/funds/convert-prepaid");
 
   return (
     <form onSubmit={e => { e.preventDefault(); submit({ cookies, ad_account_id: adAccountId }); }} className="space-y-3">
-      <ProxySelector onProxyChange={setProxy} />
+      <ProxySelector onProxyChange={setProxy} proxyInfo={proxyInfo} />
       <textarea value={cookies} onChange={e => setCookies(e.target.value)} rows={3} className={inputCls} placeholder="Cookies: c_user=...; xs=...; datr=..." required />
       <input value={adAccountId} onChange={e => setAdAccountId(e.target.value)} className={inputCls} placeholder="Ad Account ID (act_...)" required />
       <button type="submit" disabled={loading} className={btnCls}>{loading ? "Processing..." : "💳 Convert to Prepaid"}</button>
@@ -104,11 +106,11 @@ function AddBalance() {
   const [cookies, setCookies]         = useState("");
   const [adAccountId, setAdAccountId] = useState("");
   const [amount, setAmount]           = useState("");
-  const { setProxy, loading, msg, msgType, result, submit } = useFundsTool("/api/funds/add-funds");
+  const { setProxy, proxyInfo, loading, msg, msgType, result, submit } = useFundsTool("/api/funds/add-funds");
 
   return (
     <form onSubmit={e => { e.preventDefault(); submit({ cookies, ad_account_id: adAccountId, amount }); }} className="space-y-3">
-      <ProxySelector onProxyChange={setProxy} />
+      <ProxySelector onProxyChange={setProxy} proxyInfo={proxyInfo} />
       <textarea value={cookies} onChange={e => setCookies(e.target.value)} rows={3} className={inputCls} placeholder="Cookies: c_user=...; xs=...; datr=..." required />
       <input value={adAccountId} onChange={e => setAdAccountId(e.target.value)} className={inputCls} placeholder="Ad Account ID (act_...)" required />
       <input value={amount} onChange={e => setAmount(e.target.value)} type="number" step="0.01" min="1" className={inputCls} placeholder="Amount (USD)" required />

@@ -3,6 +3,7 @@
  * Tries multiple sources and normalises to one shape.
  */
 import { Router } from "express";
+import { proxyFetch, parseProxyUrl, buildProxyInfo } from "../utils/proxyManager.js";
 
 const router = Router();
 
@@ -67,50 +68,55 @@ router.get("/bin/:bin", async (req, res) => {
   const bin = req.params.bin.replace(/\D/g, "").slice(0, 8);
   if (bin.length < 6) return res.status(400).json({ error: "BIN must be at least 6 digits" });
 
+  // Proxy support via query params
+  const proxyOption = req.query.proxy_option || 'none';
+  const customProxy = req.query.custom_proxy || null;
+  const proxyUrl = proxyOption === 'custom' ? parseProxyUrl(customProxy) : null;
+  const headers = {
+    "Accept-Version": "3",
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (compatible; VortexTools/1.0)",
+  };
+
   // ── 1. Try binlist.net ───────────────────────────────────────────────────
   try {
-    const r = await fetch(`https://lookup.binlist.net/${bin}`, {
-      headers: {
-        "Accept-Version": "3",
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (compatible; VortexTools/1.0)",
-      },
-    });
+    const r = await proxyFetch(`https://lookup.binlist.net/${bin}`, proxyUrl, { headers });
 
     if (r.ok) {
       const d = await r.json();
-      return res.json(normaliseBinlist(d, bin));
+      const result = normaliseBinlist(d, bin);
+      result.proxy_info = buildProxyInfo(proxyOption, customProxy);
+      return res.json(result);
     }
     // 429 rate-limit or 404 → fall through to next source
   } catch (_) { /* network error → fall through */ }
 
   // ── 2. Try handyapi.com ─────────────────────────────────────────────────
   try {
-    const r = await fetch(`https://data.handyapi.com/bin/${bin}`, {
-      headers: {
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0",
-      },
+    const r = await proxyFetch(`https://data.handyapi.com/bin/${bin}`, proxyUrl, {
+      headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" },
     });
 
     if (r.ok) {
       const d = await r.json();
       if (d.Status === "SUCCESS") {
-        return res.json(normaliseHandyapi(d, bin));
+        const result = normaliseHandyapi(d, bin);
+        result.proxy_info = buildProxyInfo(proxyOption, customProxy);
+        return res.json(result);
       }
     }
   } catch (_) { /* fall through */ }
 
   // ── 3. Try bincheck.io ──────────────────────────────────────────────────
   try {
-    const r = await fetch(`https://api.bintable.com/v1/${bin}?api_key=`, {
+    const r = await proxyFetch(`https://api.bintable.com/v1/${bin}?api_key=`, proxyUrl, {
       headers: { "Accept": "application/json" },
     });
     if (r.ok) {
       const d = await r.json();
       if (d && d.result) {
         const result = d.result;
-        return res.json({
+        const response = {
           bin,
           scheme:  result.scheme   ? result.scheme.toLowerCase()  : null,
           type:    result.type     ? result.type.toLowerCase()    : null,
@@ -131,12 +137,18 @@ router.get("/bin/:bin", async (req, res) => {
             url:   null,
           } : null,
           number: null,
-        });
+        };
+        response.proxy_info = buildProxyInfo(proxyOption, customProxy);
+        return res.json(response);
       }
     }
   } catch (_) { /* fall through */ }
 
-  return res.status(404).json({ error: "BIN not found in any database. Try a different BIN." });
+  // Return proxy_info even on failure
+  return res.status(404).json({
+    error: "BIN not found in any database. Try a different BIN.",
+    proxy_info: buildProxyInfo(proxyOption, customProxy),
+  });
 });
 
 export default router;

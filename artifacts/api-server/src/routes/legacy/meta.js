@@ -1,32 +1,7 @@
 import express from 'express';
+import { parseProxyUrl, proxyFetch } from '../utils/proxyManager.js';
 
 const router = express.Router();
-
-// ── Proxy URL parser ─────────────────────────────────────────────
-function parseProxyUrl(raw) {
-  const s = raw.trim();
-  if (!s) return null;
-  if (/^https?:\/\/|^socks[45]:\/\//i.test(s)) return s;
-  if (s.includes('@')) return `http://${s}`;
-  const parts = s.split(':');
-  if (parts.length === 4) {
-    const [host, port, user, pass] = parts;
-    return `http://${user}:${pass}@${host}:${port}`;
-  }
-  return `http://${s}`;
-}
-
-// ── Proxy-aware fetch ────────────────────────────────────────────
-async function proxyFetch(url, proxyUrl, init = {}) {
-  if (!proxyUrl) return fetch(url, init);
-  try {
-    const { ProxyAgent } = await import('undici');
-    const dispatcher = new ProxyAgent(proxyUrl);
-    return fetch(url, { ...init, dispatcher });
-  } catch {
-    return fetch(url, init);
-  }
-}
 
 // ── Connect via access token ─────────────────────────────────────
 router.post('/connect', async (req, res) => {

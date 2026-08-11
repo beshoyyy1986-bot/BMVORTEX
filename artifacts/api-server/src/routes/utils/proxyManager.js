@@ -354,3 +354,164 @@ export function getProxyConfig(proxyOption, customProxy) {
 }
 
 export default getProxyManager();
+
+// ──────────────────────────────────────────────────────────────
+// Centralised Proxy Utilities — used by every route
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Normalise various proxy string formats into a standard URL.
+ * Supported:
+ *   http(s)://host:port
+ *   socks4://host:port
+ *   socks5://host:port
+ *   http(s)://user:pass@host:port
+ *   host:port:user:pass  (legacy 4-part colon format)
+ *   host:port            (bare, no scheme → default http)
+ */
+export function parseProxyUrl(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s) return null;
+
+  // Already has a recognised scheme
+  if (/^(https?|socks[45]):\/\//i.test(s)) return s;
+
+  // user:pass@host:port  (no scheme)
+  if (s.includes('@')) return `http://${s}`;
+
+  const parts = s.split(':');
+  // host:port:user:pass  (legacy 4-part format used by the UI)
+  if (parts.length === 4) {
+    const [host, port, user, pass] = parts;
+    return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+  }
+  // host:port  (bare)
+  if (parts.length >= 2) {
+    return `http://${s}`;
+  }
+  return null;
+}
+
+/**
+ * Detect the proxy protocol type from a URL string.
+ * Returns one of: 'http' | 'https' | 'socks4' | 'socks5' | null
+ *
+ * Priority: scheme > port-based inference (fallback only).
+ */
+export function detectProxyType(proxyUrl) {
+  if (!proxyUrl) return null;
+  const s = typeof proxyUrl === 'string' ? proxyUrl : String(proxyUrl);
+
+  // Explicit scheme — use it directly
+  const schemeMatch = s.match(/^(https?|socks[45]):\/\//i);
+  if (schemeMatch) return schemeMatch[1].toLowerCase();
+
+  // Port-based inference (legacy fallback only — only when no scheme)
+  const bareParts = s.split(':');
+  if (bareParts.length >= 2) {
+    const port = parseInt(bareParts[1], 10);
+    if (!isNaN(port) && port === 1080) return 'socks5'; // common SOCKS default
+  }
+  // No scheme & no port hint → assume http
+  return 'http';
+}
+
+/**
+ * Parse a proxy URL into its components (host, port, username, password).
+ */
+export function parseProxyComponents(proxyUrl) {
+  const normalized = parseProxyUrl(proxyUrl);
+  if (!normalized) return null;
+
+  // For SOCKS schemes, temporarily replace with http so URL can parse them
+  const parseable = normalized
+    .replace(/^socks5:\/\//i, 'http://')
+    .replace(/^socks4:\/\//i, 'http://')
+    .replace(/^https:\/\//i, 'http://');
+
+  try {
+    const url = new URL(parseable);
+    return {
+      host: url.hostname,
+      port: url.port ? parseInt(url.port, 10) : null,
+      username: url.username ? decodeURIComponent(url.username) : null,
+      password: url.password ? decodeURIComponent(url.password) : null,
+      authenticated: !!(url.username && url.password),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build a proxy_info object suitable for API responses.
+ * @param {string} proxyOption - 'none' | 'site' | 'custom' | 'random'
+ * @param {string|null} customProxy - raw proxy string from user
+ * @returns {object} proxy_info
+ */
+export function buildProxyInfo(proxyOption, customProxy) {
+  const result = {
+    status: 'no_proxy',
+    type: null,
+    host: null,
+    port: null,
+    authenticated: false,
+  };
+
+  if (proxyOption === 'none' || !proxyOption) {
+    return result;
+  }
+
+  const raw = proxyOption === 'custom' ? customProxy : null;
+  const normalized = raw ? parseProxyUrl(raw) : null;
+
+  if (!normalized) {
+    // Option is set but no valid proxy string (e.g., site/random with no available proxy)
+    return { ...result, status: 'no_proxy' };
+  }
+
+  const components = parseProxyComponents(normalized);
+  if (!components) {
+    return { ...result, status: 'invalid', type: detectProxyType(normalized) };
+  }
+
+  return {
+    status: 'active',
+    type: detectProxyType(normalized),
+    host: components.host,
+    port: components.port,
+    authenticated: components.authenticated,
+  };
+}
+
+/**
+ * Create an undici ProxyAgent for native fetch usage.
+ * Returns null if proxyUrl is empty or invalid.
+ */
+export async function createUndiciProxyAgent(proxyUrl) {
+  if (!proxyUrl) return null;
+  const normalized = parseProxyUrl(proxyUrl);
+  if (!normalized) return null;
+
+  try {
+    const { ProxyAgent } = await import('undici');
+    return new ProxyAgent(normalized);
+  } catch (error) {
+    console.error('[ProxyManager] Error creating undici ProxyAgent:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Proxy-aware fetch helper that routes through undici ProxyAgent when a proxy
+ * is provided, otherwise falls back to native fetch.
+ */
+export async function proxyFetch(url, proxyUrl, init = {}) {
+  if (!proxyUrl) return fetch(url, init);
+
+  const dispatcher = await createUndiciProxyAgent(proxyUrl);
+  if (!dispatcher) return fetch(url, init); // fallback
+
+  return fetch(url, { ...init, dispatcher });
+}
