@@ -18,6 +18,8 @@
  *   7. Multi-URL retry (business → facebook → ads → instagram)
  */
 
+import { buildPlaywrightProxy } from '../routes/utils/proxyManager.js';
+
 let playwrightModule = null;
 let getChromiumPath = null;
 let _initPromise = null;
@@ -374,14 +376,12 @@ async function launchBrowser(proxy) {
   }
 
   if (proxy) {
-    try {
-      const u = new URL(proxy.includes('://') ? proxy : `http://${proxy}`);
-      launchOpts.proxy = {
-        server: `${u.protocol}//${u.hostname}${u.port ? `:${u.port}` : ''}`,
-        username: u.username || undefined,
-        password: u.password || undefined,
-      };
-    } catch {
+    // Unified proxy parsing — handles http/https/socks5 and the legacy
+    // host:port:user:pass format identically to every other tool.
+    const pwProxy = buildPlaywrightProxy(proxy);
+    if (pwProxy) {
+      launchOpts.proxy = pwProxy;
+    } else {
       launchOpts.proxy = { server: proxy };
     }
   }

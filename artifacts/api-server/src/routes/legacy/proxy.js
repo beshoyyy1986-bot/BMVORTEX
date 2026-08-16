@@ -1,5 +1,8 @@
 import express from 'express';
-import { getProxyManager, parseProxyUrl, detectProxyType, parseProxyComponents } from '../utils/proxyManager.js';
+import {
+  getProxyManager,
+  checkProxyConnectivity,
+} from '../utils/proxyManager.js';
 
 const router = express.Router();
 
@@ -218,7 +221,9 @@ router.get('/stats', (req, res) => {
 });
 
 /**
- * Quick proxy check — test if a proxy actually works
+ * Quick proxy check — the single shared "Test" routine used by the per-tool
+ * Test button. Routes a request THROUGH the proxy, geo-locates the exit IP
+ * (type + country + city + isp), and verifies egress actually happened.
  * POST /api/proxy/quick-check
  */
 router.post('/quick-check', async (req, res) => {
@@ -228,100 +233,84 @@ router.post('/quick-check', async (req, res) => {
       return res.status(400).json({ success: false, error: 'proxy URL is required' });
     }
 
-    const normalized = parseProxyUrl(proxy);
-    if (!normalized) {
-      return res.json({
-        success: false,
-        status: 'invalid_url',
-        reason: 'Proxy URL format is not recognised',
-        proxy_info: {
-          status: 'invalid',
-          type: null,
-          host: null,
-          port: null,
-          authenticated: false,
-        },
-      });
+    const result = await checkProxyConnectivity(proxy, { timeoutMs: 15000 });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Batch proxy connectivity check — used by the Proxy Tools "Checker" tab.
+ * Accepts the { proxies: [{host, port, protocol, username, password}], ... }
+ * contract and returns per-proxy status + geo (country/city/isp/latency).
+ * POST /api/proxy/check
+ */
+router.post('/check', async (req, res) => {
+  try {
+    const { proxies, timeoutMs, concurrency } = req.body || {};
+    if (!Array.isArray(proxies) || proxies.length === 0) {
+      return res.status(400).json({ success: false, error: 'proxies must be a non-empty array' });
     }
 
-    const components = parseProxyComponents(normalized);
-    if (!components) {
-      return res.json({
-        success: false,
-        status: 'invalid_url',
-        reason: 'Could not parse proxy URL',
-        proxy_info: {
-          status: 'invalid',
-          type: detectProxyType(normalized),
-          host: null,
-          port: null,
-          authenticated: false,
-        },
-      });
-    }
+    const perCheckTimeout = Math.min(Math.max(Number(timeoutMs) || 12000, 3000), 30000);
+    const pool = Math.min(Math.max(Number(concurrency) || 10, 1), 25);
 
-    const manager = getProxyManager();
-    const startTime = Date.now();
+    // Rebuild a raw proxy URL from the structured entry.
+    const toRawUrl = (p) => {
+      if (typeof p === 'string') return p;
+      if (!p || !p.host || !p.port) return null;
+      const scheme = (p.protocol || 'http').toLowerCase().replace(/[^a-z0-9]/g, '') || 'http';
+      const auth = p.username ? `${encodeURIComponent(p.username)}:${encodeURIComponent(p.password || '')}@` : '';
+      return `${scheme}://${auth}${p.host}:${p.port}`;
+    };
 
-    try {
-      const config = manager.createAxiosConfig('custom', normalized);
-      const axios = (await import('axios')).default;
+    const results = new Array(proxies.length);
+    let cursor = 0;
 
-      const response = await axios.get('https://httpbin.org/ip', {
-        ...config,
-        timeout: 15000,
-      });
+    async function worker() {
+      while (cursor < proxies.length) {
+        const idx = cursor++;
+        const entry = proxies[idx];
+        const raw = toRawUrl(entry);
+        const host = typeof entry === 'string' ? null : entry.host;
+        const port = typeof entry === 'string' ? null : entry.port;
 
-      const responseTime = Date.now() - startTime;
-      const ip = response.data?.origin || null;
+        if (!raw) {
+          results[idx] = { host, port, status: 'invalid', error: 'invalid proxy entry' };
+          continue;
+        }
 
-      res.json({
-        success: true,
-        status: 'active',
-        proxy_info: {
-          status: 'active',
-          type: detectProxyType(normalized),
-          host: components.host,
-          port: components.port,
-          authenticated: components.authenticated,
-          ip,
-          responseTime,
-        },
-      });
-    } catch (error) {
-      const errorMsg = error.message || 'Connection failed';
-      const isTimeout = error.code === 'ECONNABORTED' || error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT';
-      const isRefused = error.code === 'ECONNREFUSED';
-      const isAuth = error.response?.status === 407;
-
-      let status = 'disconnected';
-      let reason = errorMsg;
-
-      if (isTimeout) {
-        status = 'disconnected';
-        reason = 'Connection timed out';
-      } else if (isRefused) {
-        status = 'disconnected';
-        reason = 'Connection refused — proxy server may be down';
-      } else if (isAuth) {
-        status = 'disconnected';
-        reason = 'Authentication failed — check username/password';
+        const r = await checkProxyConnectivity(raw, { timeoutMs: perCheckTimeout });
+        const info = r.proxy_info || {};
+        results[idx] = {
+          host: info.host || host,
+          port: info.port || port,
+          protocol: info.type || (typeof entry === 'string' ? null : entry.protocol) || null,
+          status: r.success
+            ? 'working'
+            : r.status === 'invalid_url'
+              ? 'invalid'
+              : /timed out/i.test(r.reason || '')
+                ? 'timeout'
+                : 'dead',
+          country: info.country || null,
+          countryCode: info.countryCode || null,
+          city: info.city || null,
+          isp: info.isp || null,
+          ip: info.ip || null,
+          latencyMs: info.responseTime ?? null,
+          egressVerified: info.egress_verified ?? null,
+          lastChecked: new Date().toISOString(),
+          error: r.success ? undefined : r.reason,
+        };
       }
-
-      res.json({
-        success: false,
-        status,
-        reason,
-        proxy_info: {
-          status: 'disconnected',
-          type: detectProxyType(normalized),
-          host: components.host,
-          port: components.port,
-          authenticated: components.authenticated,
-          responseTime: Date.now() - startTime,
-        },
-      });
     }
+
+    await Promise.all(Array.from({ length: pool }, worker));
+
+    const working = results.filter((r) => r.status === 'working').length;
+    res.json({ success: true, total: results.length, working, results });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

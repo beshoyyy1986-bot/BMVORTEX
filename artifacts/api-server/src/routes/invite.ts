@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { SendInviteBody } from "@workspace/api-zod";
 // @ts-ignore — unified extraction used by all other tools (getSession/playwright-first)
 import { getSession } from "../utils/metaTokens.js";
+// @ts-ignore — unified proxy layer shared by every tool
+import { proxyFetch } from "./utils/proxyManager.js";
 
 const router: IRouter = Router();
 
@@ -66,6 +68,13 @@ router.post("/send-invite", async (req, res): Promise<void> => {
 
   const { cookies, businessId, email, assetId, actorId } = parsed.data;
 
+  // Optional proxy — read straight off the raw body (the zod schema strips
+  // unknown keys) so this tool egresses through the same proxy as the rest.
+  const proxy: string | undefined =
+    typeof (req.body as Record<string, unknown>)?.proxy === "string"
+      ? ((req.body as Record<string, unknown>).proxy as string)
+      : undefined;
+
   // Extract actor_id from cookies (c_user) if not provided
   let resolvedActorId = actorId ?? "";
   if (!resolvedActorId) {
@@ -82,7 +91,7 @@ router.post("/send-invite", async (req, res): Promise<void> => {
   const sessionUrl = businessId
     ? `https://business.facebook.com/settings/people?business_id=${encodeURIComponent(businessId)}`
     : undefined;
-  const session = await getSession(cookies, sessionUrl);
+  const session = await getSession(cookies, sessionUrl, 20000, proxy);
 
   if (!session?.dtsg) {
     res.status(400).json({
@@ -147,7 +156,7 @@ router.post("/send-invite", async (req, res): Promise<void> => {
   });
 
   try {
-    const response = await fetch(`${origin}/api/graphql/`, {
+    const response = await proxyFetch(`${origin}/api/graphql/`, proxy, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
