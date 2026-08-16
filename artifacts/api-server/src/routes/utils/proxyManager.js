@@ -1,5 +1,6 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
+import axios from 'axios';
 import tls from 'tls';
 import fs from 'fs';
 import path from 'path';
@@ -15,13 +16,30 @@ const PROXIES_FILE = path.join(dataDir, 'proxies.json');
 const FAILED_PROXIES_FILE = path.join(dataDir, 'failed-proxies.json');
 
 /**
- * Robust Proxy Manager with health checks and automatic cleanup
+ * Robust Proxy Manager with health checks and automatic cleanup.
+ *
+ * Site-wide pool behaviour (admin-managed):
+ *   - Any tool that doesn't get a personal proxy from its user falls back to
+ *     this pool automatically (see getProxyForRequest / createAxiosConfig /
+ *     createAxiosClient / proxyFetch).
+ *   - Any recognisable proxy string is accepted - with or without a
+ *     username/password, any of http/https/socks4/socks5, and the legacy
+ *     host:port:user:pass shorthand.
+ *   - A pool proxy that fails twice is removed automatically.
+ *   - Smart round-robin rotation spreads load across the pool; a single
+ *     configured proxy is naturally reused for every request.
+ *   - On a proxy-related failure, callers using createAxiosClient /
+ *     fetchWithPoolRetry automatically retry with another pool proxy.
  */
 export class ProxyManager {
   constructor() {
     this.proxies = [];
     this.failedProxies = new Map(); // proxy -> {failCount, lastFail, lastCheck}
     this.proxyStats = new Map(); // proxy -> {successCount, failCount, avgResponseTime}
+    this.rotationIndex = 0;
+    // The site-wide pool is admin-curated: a proxy that fails twice is
+    // removed automatically so the pool stays healthy without manual pruning.
+    this.maxFailuresBeforeRemoval = 2;
     this.loadProxies();
     this.loadFailedProxies();
     this.startAutoCleanup();
@@ -72,11 +90,17 @@ export class ProxyManager {
     }
   }
 
+  /**
+   * Adds a proxy to the site-wide pool. Accepts literally any non-empty
+   * string (any scheme, with or without a username/password, or the legacy
+   * host:port:user:pass shorthand) - parsing/validation happens lazily at
+   * request time via parseProxyUrl, so nothing is rejected here.
+   */
   addProxy(proxyUrl) {
     if (!proxyUrl || typeof proxyUrl !== 'string') return false;
     const normalized = proxyUrl.trim();
     if (!normalized) return false;
-    
+
     if (!this.proxies.includes(normalized)) {
       this.proxies.push(normalized);
       this.saveProxies();
@@ -94,6 +118,7 @@ export class ProxyManager {
       this.proxyStats.delete(proxyUrl);
       this.saveProxies();
       this.saveFailedProxies();
+      if (this.rotationIndex > this.proxies.length) this.rotationIndex = 0;
       console.log(`[ProxyManager] Removed proxy: ${proxyUrl}`);
       return true;
     }
@@ -108,15 +133,16 @@ export class ProxyManager {
     return [...this.proxies];
   }
 
+  /**
+   * The site-wide pool is admin-curated, so a proxy is considered failed -
+   * and is removed by markProxyFailed() - as soon as it hits two failures.
+   * No temporary grace window: once it crosses the threshold it stays out
+   * until an admin re-adds it.
+   */
   isProxyFailed(proxy) {
     const record = this.failedProxies.get(proxy);
     if (!record) return false;
-    // Mark as failed if failed 3+ times and last failure within 24h
-    if (record.failCount >= 3) {
-      const hoursSinceFail = (Date.now() - record.lastFail) / (1000 * 60 * 60);
-      if (hoursSinceFail < 24) return true;
-    }
-    return false;
+    return record.failCount >= this.maxFailuresBeforeRemoval;
   }
 
   markProxySuccess(proxy, responseTime) {
@@ -125,26 +151,37 @@ export class ProxyManager {
     stats.totalResponseTime += responseTime;
     stats.avgResponseTime = stats.totalResponseTime / stats.successCount;
     this.proxyStats.set(proxy, stats);
-    
+
     // Clear failure record on success
     this.failedProxies.delete(proxy);
     this.saveFailedProxies();
   }
 
+  /**
+   * Records a failure against a pool proxy and immediately removes it once
+   * it reaches maxFailuresBeforeRemoval (2) failures - the site pool is
+   * admin-curated, so there's no temporary grace window like the old
+   * 5-failures/24h policy.
+   */
   markProxyFailed(proxy, error) {
     const record = this.failedProxies.get(proxy) || { failCount: 0, lastFail: 0, errors: [] };
     record.failCount++;
     record.lastFail = Date.now();
     record.lastError = error;
-    record.errors.push({ time: Date.now(), error: error.substring(0, 200) });
+    record.errors.push({ time: Date.now(), error: String(error || '').substring(0, 200) });
     // Keep last 5 errors only
     if (record.errors.length > 5) record.errors = record.errors.slice(-5);
     this.failedProxies.set(proxy, record);
+
+    const stats = this.proxyStats.get(proxy) || { successCount: 0, failCount: 0, totalResponseTime: 0 };
+    stats.failCount = (stats.failCount || 0) + 1;
+    this.proxyStats.set(proxy, stats);
+
     this.saveFailedProxies();
-    
-    // Auto-remove if failed 5+ times
-    if (record.failCount >= 5) {
-      console.log(`[ProxyManager] Auto-removing dead proxy: ${proxy}`);
+
+    // Auto-remove once the failure threshold is hit (2 strikes).
+    if (record.failCount >= this.maxFailuresBeforeRemoval) {
+      console.log(`[ProxyManager] Auto-removing dead proxy after ${record.failCount} failures: ${proxy}`);
       this.removeProxy(proxy);
     }
   }
@@ -155,17 +192,53 @@ export class ProxyManager {
     return working[Math.floor(Math.random() * working.length)];
   }
 
+  /**
+   * Smart rotation: returns the next healthy proxy using a round-robin
+   * cursor so load spreads evenly across the whole pool, skipping any proxy
+   * in `exclude` (used by retry loops so a request never reuses a proxy
+   * that just failed earlier in the same attempt chain). With exactly one
+   * proxy in the pool this naturally always returns that same proxy every
+   * time.
+   */
+  getNextProxy(exclude = new Set()) {
+    const pool = this.getProxies();
+    if (pool.length === 0) return null;
+    if (pool.length === 1) return exclude.has(pool[0]) ? null : pool[0];
+    for (let i = 0; i < pool.length; i++) {
+      if (this.rotationIndex >= pool.length) this.rotationIndex = 0;
+      const candidate = pool[this.rotationIndex];
+      this.rotationIndex = (this.rotationIndex + 1) % pool.length;
+      if (!exclude.has(candidate)) return candidate;
+    }
+    return null;
+  }
+
+  /**
+   * Resolves the proxy that should actually be used for a single request:
+   *   1. The caller's own proxy (customProxy) always wins, no matter which
+   *      proxyOption was sent.
+   *   2. 'random' explicitly asks for a uniformly random pool proxy.
+   *   3. 'site' checks for a pinned per-service override (setSiteProxy)
+   *      first, then falls back to the general pool via smart rotation.
+   *   4. Anything else (including 'none', or 'custom' with an empty value) -
+   *      no personal proxy was supplied, so requests transparently flow
+   *      through the site-wide admin-managed pool via smart rotation instead
+   *      of going direct.
+   */
   getProxyForRequest(proxyOption, customProxy = null, site = null) {
+    if (customProxy) return customProxy;
+
     switch (proxyOption) {
-      case 'none':
-        return null;
-      case 'custom':
-        return customProxy || null;
-      case 'site':
-        return site ? this.getSiteProxy(site) : this.getRandomProxy();
       case 'random':
-      default:
         return this.getRandomProxy();
+      case 'site': {
+        const pinned = site ? this.getSiteProxy(site) : null;
+        return pinned || this.getNextProxy();
+      }
+      case 'none':
+      case 'custom':
+      default:
+        return this.getNextProxy();
     }
   }
 
@@ -214,12 +287,65 @@ export class ProxyManager {
     };
   }
 
+  /**
+   * Builds an axios instance bound to a resolved proxy that, when the proxy
+   * came from the site-wide pool (i.e. the caller did not supply their own
+   * proxy), automatically records a proxy-related failure against that
+   * proxy and retries the request with another pool proxy - up to a few
+   * attempts. A user's own custom proxy is never silently swapped out.
+   */
+  createAxiosClient(proxyOption, customProxy, site, axiosOptions = {}) {
+    const usesPool = !customProxy;
+    let currentProxy = this.getProxyForRequest(proxyOption, customProxy, site);
+    const triedFromPool = new Set();
+    if (usesPool && currentProxy) triedFromPool.add(currentProxy);
+
+    const buildProxyPart = () => {
+      if (!currentProxy) return { proxy: false };
+      const agent = createHttpAgent(currentProxy);
+      if (!agent) return { proxy: false };
+      return { httpsAgent: agent, httpAgent: agent, proxy: false };
+    };
+
+    const client = axios.create({ ...axiosOptions, ...buildProxyPart() });
+    const maxPoolAttempts = usesPool ? Math.min(this.getAllProxies().length || 1, 3) : 1;
+    let attempts = 0;
+    const manager = this;
+
+    client.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        attempts += 1;
+        const failedProxy = currentProxy;
+
+        if (usesPool && failedProxy && isProxyRelatedError(error)) {
+          manager.markProxyFailed(failedProxy, error.message || String(error));
+
+          if (attempts < maxPoolAttempts) {
+            const nextProxy = manager.getNextProxy(triedFromPool);
+            if (nextProxy) {
+              triedFromPool.add(nextProxy);
+              currentProxy = nextProxy;
+              const cfg = buildProxyPart();
+              Object.assign(client.defaults, cfg);
+              return client.request({ ...(error.config || {}), ...cfg });
+            }
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return client;
+  }
+
   getProxyAgent(proxyUrl) {
     return createHttpAgent(proxyUrl);
   }
 
   async testProxy(proxy) {
-    const axios = (await import('axios')).default;
+    const axiosLib = (await import('axios')).default;
     const startTime = Date.now();
     const type = detectProxyType(parseProxyUrl(proxy));
 
@@ -230,10 +356,10 @@ export class ProxyManager {
         timeout: 15000,
         ...this.createAxiosConfig('custom', proxy)
       };
-      
-      const response = await axios(config);
+
+      const response = await axiosLib(config);
       const responseTime = Date.now() - startTime;
-      
+
       this.markProxySuccess(proxy, responseTime);
       return {
         success: true,
@@ -266,6 +392,34 @@ export class ProxyManager {
     return results;
   }
 
+  /**
+   * Performs a plain fetch through the site-wide pool with smart rotation
+   * and automatic retry-on-failure. Used by proxyFetch() whenever the
+   * caller did not supply their own proxy. Falls back to a direct request
+   * if the pool is empty or every pool proxy fails for a proxy-related
+   * reason, so callers still get a real response/error instead of hanging.
+   */
+  async fetchWithPoolRetry(url, init = {}) {
+    const maxAttempts = Math.min(this.getAllProxies().length || 1, 3);
+    const tried = new Set();
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const proxy = this.getNextProxy(tried);
+      if (!proxy) break;
+      tried.add(proxy);
+      const start = Date.now();
+      try {
+        const dispatcher = await createProxyDispatcher(proxy);
+        const res = dispatcher ? await fetch(url, { ...init, dispatcher }) : await fetch(url, init);
+        this.markProxySuccess(proxy, Date.now() - start);
+        return res;
+      } catch (err) {
+        if (!isProxyRelatedError(err)) throw err;
+        this.markProxyFailed(proxy, err.message || String(err));
+      }
+    }
+    return fetch(url, init);
+  }
+
   cleanupDeadProxies() {
     const before = this.proxies.length;
     this.proxies = this.proxies.filter(p => !this.isProxyFailed(p));
@@ -283,7 +437,7 @@ export class ProxyManager {
       console.log('[ProxyManager] Running scheduled cleanup...');
       this.cleanupDeadProxies();
     }, 60 * 60 * 1000);
-    
+
     // Also run once at startup
     this.cleanupDeadProxies();
   }
@@ -291,7 +445,7 @@ export class ProxyManager {
   getStats() {
     const working = this.getProxies();
     const failed = this.proxies.filter(p => this.isProxyFailed(p));
-    
+
     return {
       total: this.proxies.length,
       working: working.length,
@@ -335,9 +489,7 @@ export function getProxyConfig(proxyOption, customProxy, site = 'facebook') {
 
 export default getProxyManager();
 
-// ──────────────────────────────────────────────────────────────
-// Centralised Proxy Utilities — used by every route
-// ──────────────────────────────────────────────────────────────
+// Centralised Proxy Utilities - used by every route
 
 /**
  * Normalise various proxy string formats into a standard URL.
@@ -347,7 +499,7 @@ export default getProxyManager();
  *   socks5://host:port
  *   http(s)://user:pass@host:port
  *   host:port:user:pass  (legacy 4-part colon format)
- *   host:port            (bare, no scheme → default http)
+ *   host:port            (bare, no scheme, default http)
  */
 export function parseProxyUrl(raw) {
   if (!raw || typeof raw !== 'string') return null;
@@ -358,17 +510,19 @@ export function parseProxyUrl(raw) {
   if (/^(https?|socks[45]):\/\//i.test(s)) return s;
 
   // user:pass@host:port  (no scheme)
-  if (s.includes('@')) return `http://${s}`;
+  if (s.includes('@')) {
+    return 'http://' + s;
+  }
 
   const parts = s.split(':');
   // host:port:user:pass  (legacy 4-part format used by the UI)
   if (parts.length === 4) {
     const [host, port, user, pass] = parts;
-    return `http://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}:${port}`;
+    return 'http://' + encodeURIComponent(user) + ':' + encodeURIComponent(pass) + '@' + host + ':' + port;
   }
   // host:port  (bare)
   if (parts.length >= 2) {
-    return `http://${s}`;
+    return 'http://' + s;
   }
   return null;
 }
@@ -383,17 +537,17 @@ export function detectProxyType(proxyUrl) {
   if (!proxyUrl) return null;
   const s = typeof proxyUrl === 'string' ? proxyUrl : String(proxyUrl);
 
-  // Explicit scheme — use it directly
+  // Explicit scheme - use it directly
   const schemeMatch = s.match(/^(https?|socks[45]):\/\//i);
   if (schemeMatch) return schemeMatch[1].toLowerCase();
 
-  // Port-based inference (legacy fallback only — only when no scheme)
+  // Port-based inference (legacy fallback only - only when no scheme)
   const bareParts = s.split(':');
   if (bareParts.length >= 2) {
     const port = parseInt(bareParts[1], 10);
     if (!isNaN(port) && port === 1080) return 'socks5'; // common SOCKS default
   }
-  // No scheme & no port hint → assume http
+  // No scheme & no port hint, assume http
   return 'http';
 }
 
@@ -469,7 +623,7 @@ export function buildProxyInfo(proxyOption, customProxy) {
  * Create an undici ProxyAgent for native fetch usage.
  * Returns null if proxyUrl is empty or invalid.
  *
- * @deprecated Kept for backward compatibility. Prefer {@link createProxyDispatcher},
+ * @deprecated Kept for backward compatibility. Prefer createProxyDispatcher,
  * which additionally supports SOCKS4/SOCKS5 proxies.
  */
 export async function createUndiciProxyAgent(proxyUrl) {
@@ -477,30 +631,64 @@ export async function createUndiciProxyAgent(proxyUrl) {
 }
 
 /**
+ * Heuristic classifier for "this request failed because of the proxy" vs
+ * "this request failed for an application-level reason" (bad credentials,
+ * invalid ad account, destination rate limiting, etc). Only proxy-related
+ * failures should trigger removing/rotating a site-pool proxy.
+ */
+export function isProxyRelatedError(error) {
+  if (!error) return false;
+  const cause = error.cause;
+  const code = error.code || cause?.code;
+  const proxyCodes = new Set([
+    'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED', 'ENOTFOUND',
+    'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET',
+    'ERR_PROXY_AUTH',
+  ]);
+  if (code && proxyCodes.has(code)) return true;
+  if (error.response?.status === 407) return true; // proxy authentication required
+  const message = String(error.message || cause?.message || '').toLowerCase();
+  return (
+    message.includes('proxy') ||
+    message.includes('tunneling socket') ||
+    message.includes('socket hang up') ||
+    message.includes('client network socket disconnected') ||
+    message.includes('econnrefused') ||
+    message.includes('connect timeout') ||
+    message === 'fetch failed'
+  );
+}
+
+/**
+ * Resolves the raw proxy string that should actually be used for a request
+ * that isn't axios/fetch based (e.g. Playwright browser sessions): the
+ * caller's own proxy if supplied, otherwise the next proxy from the
+ * site-wide admin-managed pool (smart rotation).
+ */
+export function getEffectiveProxyRaw(customProxy) {
+  const trimmed = typeof customProxy === 'string' ? customProxy.trim() : customProxy;
+  if (trimmed) return trimmed;
+  return getProxyManager().getNextProxy();
+}
+
+/**
  * Proxy-aware fetch helper that routes through a proxy dispatcher when a proxy
  * is provided, otherwise falls back to native fetch. Supports HTTP(S) and
- * SOCKS4/SOCKS5 proxies via the unified {@link createProxyDispatcher}.
+ * SOCKS4/SOCKS5 proxies via the unified createProxyDispatcher.
+ *
+ * When no proxyUrl is supplied, transparently falls back to the site-wide
+ * admin-managed proxy pool (smart rotation + auto-retry-on-failure) instead
+ * of going direct, so every proxyFetch-based tool benefits the same way
+ * axios-based tools do via createAxiosConfig/createAxiosClient.
  */
 export async function proxyFetch(url, proxyUrl, init = {}) {
-  if (!proxyUrl) return fetch(url, init);
+  if (!proxyUrl) return getProxyManager().fetchWithPoolRetry(url, init);
 
   const dispatcher = await createProxyDispatcher(proxyUrl);
   if (!dispatcher) return fetch(url, init); // fallback
 
   return fetch(url, { ...init, dispatcher });
 }
-
-// ──────────────────────────────────────────────────────────────
-// Unified agent / dispatcher factories — the single source of truth
-// used by EVERY tool for outbound proxying.
-//
-//   • createHttpAgent()       → node http.Agent  (used by axios routes)
-//   • createProxyDispatcher() → undici Dispatcher (used by fetch routes)
-//   • buildPlaywrightProxy()  → Playwright proxy  (used by browser routes)
-//
-// All three normalise the raw proxy string through parseProxyUrl() first, then
-// pick the correct protocol implementation (HTTP / HTTPS / SOCKS4 / SOCKS5).
-// ──────────────────────────────────────────────────────────────
 
 /**
  * Create a node http(s) Agent for the given raw proxy string.
@@ -583,7 +771,7 @@ export async function createProxyDispatcher(rawProxy) {
       });
     }
 
-    // HTTP / HTTPS proxy → undici's native ProxyAgent (HTTP CONNECT tunnel)
+    // HTTP / HTTPS proxy - undici's native ProxyAgent (HTTP CONNECT tunnel)
     const { ProxyAgent } = await import('undici');
     return new ProxyAgent(normalized);
   } catch (error) {
@@ -621,11 +809,9 @@ export function buildPlaywrightProxy(rawProxy) {
   return proxy;
 }
 
-// ──────────────────────────────────────────────────────────────
-// Connectivity check with geo lookup — the single "test proxy" routine
+// Connectivity check with geo lookup - the single "test proxy" routine
 // used by the /api/proxy/quick-check and /api/proxy/check endpoints and,
 // through them, the "Test" button that every tool shares.
-// ──────────────────────────────────────────────────────────────
 
 let _serverPublicIp = null;
 let _serverPublicIpFetchedAt = 0;
@@ -655,7 +841,7 @@ export async function getServerPublicIp() {
 
 /**
  * Geo-locate an IP address (country / city / ISP). Tries ipwho.is (https) first,
- * then falls back to ip-api.com. Never throws — returns nulls on failure.
+ * then falls back to ip-api.com. Never throws - returns nulls on failure.
  * @param {string} ip
  */
 export async function lookupIpGeo(ip) {
@@ -664,7 +850,7 @@ export async function lookupIpGeo(ip) {
 
   // Primary: ipwho.is (https, no key)
   try {
-    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, {
+    const res = await fetch('https://ipwho.is/' + encodeURIComponent(ip), {
       signal: AbortSignal.timeout(8000),
     });
     const d = await res.json();
@@ -683,7 +869,7 @@ export async function lookupIpGeo(ip) {
   // Fallback: ip-api.com (http, no key)
   try {
     const res = await fetch(
-      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,city,isp`,
+      'http://ip-api.com/json/' + encodeURIComponent(ip) + '?fields=status,country,countryCode,city,isp',
       { signal: AbortSignal.timeout(8000) },
     );
     const d = await res.json();
@@ -707,7 +893,7 @@ export async function lookupIpGeo(ip) {
  * proxy to an IP-echo service, geo-locate the exit IP, and verify egress by
  * comparing the exit IP to the server's own public IP.
  *
- * Works for HTTP/HTTPS/SOCKS4/SOCKS5 because it uses {@link proxyFetch}.
+ * Works for HTTP/HTTPS/SOCKS4/SOCKS5 because it uses proxyFetch.
  *
  * @param {string} rawProxy
  * @param {{ timeoutMs?: number, echoUrl?: string }} [opts]
@@ -817,8 +1003,8 @@ export async function checkProxyConnectivity(rawProxy, opts = {}) {
 
     let reason = rawMsg;
     if (isTimeout) reason = 'Connection timed out';
-    else if (isRefused) reason = 'Connection refused — proxy server may be down or unreachable';
-    else if (isAuth) reason = 'Authentication failed — check username/password';
+    else if (isRefused) reason = 'Connection refused - proxy server may be down or unreachable';
+    else if (isAuth) reason = 'Authentication failed - check username/password';
 
     return {
       success: false,
