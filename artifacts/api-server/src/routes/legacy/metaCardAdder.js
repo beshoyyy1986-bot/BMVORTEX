@@ -8,6 +8,7 @@
  */
 import express from 'express';
 import { cookiesToPlaywrightArray, extractBusinessId } from '../../utils/metaTokens.js';
+import { buildPlaywrightProxy } from '../utils/proxyManager.js';
 
 const router = express.Router();
 
@@ -25,28 +26,10 @@ function randomName() {
 }
 
 // ── Proxy parser ─────────────────────────────────────────────────────────────
+// Unified with every other tool via buildPlaywrightProxy (handles
+// http/https/socks5 and the legacy host:port:user:pass format).
 function parseProxy(proxyString) {
-  if (!proxyString || !proxyString.trim()) return null;
-  const url = proxyString.trim();
-  if (/^[^:]+:\d+:[^:]+:[^:]+$/.test(url)) {
-    const [host, port, user, pass] = url.split(':');
-    return { server: `http://${host}:${port}`, username: user, password: pass };
-  }
-  if (/^[^:]+:[^:]+@[^:]+:\d+$/.test(url)) {
-    const [auth, hostPort] = url.split('@');
-    const [user, pass] = auth.split(':');
-    return { server: `http://${hostPort}`, username: user, password: pass };
-  }
-  if (/^[^:]+:\d+$/.test(url)) return { server: `http://${url}` };
-  try {
-    const parsed = new URL(url.startsWith('http') ? url : `http://${url}`);
-    const proxy  = { server: `${parsed.protocol}//${parsed.host}` };
-    if (parsed.username) {
-      proxy.username = decodeURIComponent(parsed.username);
-      proxy.password = decodeURIComponent(parsed.password);
-    }
-    return proxy;
-  } catch (_) { return null; }
+  return buildPlaywrightProxy(proxyString);
 }
 
 // ── Card parser ───────────────────────────────────────────────────────────────

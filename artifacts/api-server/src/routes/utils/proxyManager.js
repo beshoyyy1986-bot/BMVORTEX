@@ -1,4 +1,6 @@
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import tls from 'tls';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -201,34 +203,26 @@ export class ProxyManager {
   createAxiosConfig(proxyOption, customProxy, site) {
     const proxy = this.getProxyForRequest(proxyOption, customProxy, site);
     if (!proxy) return {};
-    
-    try {
-      const agent = new HttpsProxyAgent(proxy);
-      return {
-        httpsAgent: agent,
-        httpAgent: agent,
-        proxy: false // Let agent handle it
-      };
-    } catch (error) {
-      console.error('[ProxyManager] Error creating proxy agent:', error.message);
-      return {};
-    }
+
+    const agent = createHttpAgent(proxy);
+    if (!agent) return {};
+
+    return {
+      httpsAgent: agent,
+      httpAgent: agent,
+      proxy: false // Let agent handle it (also required so axios ignores env proxy)
+    };
   }
 
   getProxyAgent(proxyUrl) {
-    if (!proxyUrl) return null;
-    try {
-      return new HttpsProxyAgent(proxyUrl);
-    } catch (error) {
-      console.error('[ProxyManager] Error creating proxy agent:', error.message);
-      return null;
-    }
+    return createHttpAgent(proxyUrl);
   }
 
   async testProxy(proxy) {
     const axios = (await import('axios')).default;
     const startTime = Date.now();
-    
+    const type = detectProxyType(parseProxyUrl(proxy));
+
     try {
       const config = {
         method: 'GET',
@@ -244,6 +238,7 @@ export class ProxyManager {
       return {
         success: true,
         proxy,
+        type,
         ip: response.data?.origin,
         responseTime,
         timestamp: new Date().toISOString()
@@ -253,6 +248,7 @@ export class ProxyManager {
       return {
         success: false,
         proxy,
+        type,
         error: error.message,
         timestamp: new Date().toISOString()
       };
@@ -329,28 +325,12 @@ export function getProxyManager() {
   return instance;
 }
 
-export function getProxyConfig(proxyOption, customProxy) {
+export function getProxyConfig(proxyOption, customProxy, site = 'facebook') {
+  // Delegate to the single unified path so that every option ('custom',
+  // 'random', 'site', 'none') and every protocol (http/https/socks) behave
+  // identically no matter which route calls this helper.
   const proxyManager = getProxyManager();
-  let agent = null;
-
-  if (proxyOption === 'custom' && customProxy) {
-    try {
-      agent = new HttpsProxyAgent(customProxy);
-    } catch (e) {
-      console.warn('Invalid custom proxy:', e.message);
-    }
-  } else if (proxyOption === 'random') {
-    const proxy = proxyManager.getRandomProxy();
-    if (proxy) {
-      try {
-        agent = new HttpsProxyAgent(proxy);
-      } catch (e) {
-        console.warn('Invalid random proxy:', e.message);
-      }
-    }
-  }
-
-  return agent ? { httpsAgent: agent, proxy: false } : {};
+  return proxyManager.createAxiosConfig(proxyOption, customProxy, site);
 }
 
 export default getProxyManager();
@@ -488,30 +468,370 @@ export function buildProxyInfo(proxyOption, customProxy) {
 /**
  * Create an undici ProxyAgent for native fetch usage.
  * Returns null if proxyUrl is empty or invalid.
+ *
+ * @deprecated Kept for backward compatibility. Prefer {@link createProxyDispatcher},
+ * which additionally supports SOCKS4/SOCKS5 proxies.
  */
 export async function createUndiciProxyAgent(proxyUrl) {
-  if (!proxyUrl) return null;
-  const normalized = parseProxyUrl(proxyUrl);
+  return createProxyDispatcher(proxyUrl);
+}
+
+/**
+ * Proxy-aware fetch helper that routes through a proxy dispatcher when a proxy
+ * is provided, otherwise falls back to native fetch. Supports HTTP(S) and
+ * SOCKS4/SOCKS5 proxies via the unified {@link createProxyDispatcher}.
+ */
+export async function proxyFetch(url, proxyUrl, init = {}) {
+  if (!proxyUrl) return fetch(url, init);
+
+  const dispatcher = await createProxyDispatcher(proxyUrl);
+  if (!dispatcher) return fetch(url, init); // fallback
+
+  return fetch(url, { ...init, dispatcher });
+}
+
+// ──────────────────────────────────────────────────────────────
+// Unified agent / dispatcher factories — the single source of truth
+// used by EVERY tool for outbound proxying.
+//
+//   • createHttpAgent()       → node http.Agent  (used by axios routes)
+//   • createProxyDispatcher() → undici Dispatcher (used by fetch routes)
+//   • buildPlaywrightProxy()  → Playwright proxy  (used by browser routes)
+//
+// All three normalise the raw proxy string through parseProxyUrl() first, then
+// pick the correct protocol implementation (HTTP / HTTPS / SOCKS4 / SOCKS5).
+// ──────────────────────────────────────────────────────────────
+
+/**
+ * Create a node http(s) Agent for the given raw proxy string.
+ * Supports http, https, socks4 and socks5. Used by all axios-based routes.
+ * @param {string} rawProxy
+ * @returns {import('http').Agent|null}
+ */
+export function createHttpAgent(rawProxy) {
+  const normalized = parseProxyUrl(rawProxy);
   if (!normalized) return null;
 
   try {
-    const { ProxyAgent } = await import('undici');
-    return new ProxyAgent(normalized);
+    const type = detectProxyType(normalized);
+    if (type === 'socks4' || type === 'socks5') {
+      return new SocksProxyAgent(normalized);
+    }
+    return new HttpsProxyAgent(normalized);
   } catch (error) {
-    console.error('[ProxyManager] Error creating undici ProxyAgent:', error.message);
+    console.error('[ProxyManager] Error creating http proxy agent:', error.message);
     return null;
   }
 }
 
 /**
- * Proxy-aware fetch helper that routes through undici ProxyAgent when a proxy
- * is provided, otherwise falls back to native fetch.
+ * Create an undici Dispatcher for the given raw proxy string, for use with the
+ * native global fetch(). Supports http, https, socks4 and socks5.
+ *
+ * HTTP(S) proxies use undici's built-in ProxyAgent (HTTP CONNECT). SOCKS
+ * proxies use a custom undici Agent whose connector opens the socket through
+ * the SOCKS server (and performs the TLS upgrade for https destinations).
+ *
+ * @param {string} rawProxy
+ * @returns {Promise<import('undici').Dispatcher|null>}
  */
-export async function proxyFetch(url, proxyUrl, init = {}) {
-  if (!proxyUrl) return fetch(url, init);
+export async function createProxyDispatcher(rawProxy) {
+  const normalized = parseProxyUrl(rawProxy);
+  if (!normalized) return null;
 
-  const dispatcher = await createUndiciProxyAgent(proxyUrl);
-  if (!dispatcher) return fetch(url, init); // fallback
+  const type = detectProxyType(normalized);
 
-  return fetch(url, { ...init, dispatcher });
+  try {
+    if (type === 'socks4' || type === 'socks5') {
+      const components = parseProxyComponents(normalized);
+      if (!components || !components.host || !components.port) return null;
+
+      const { SocksClient } = await import('socks');
+      const { Agent } = await import('undici');
+      const socksType = type === 'socks4' ? 4 : 5;
+
+      return new Agent({
+        connect: (opts, callback) => {
+          const host = opts.hostname || opts.host;
+          const isTls = opts.protocol === 'https:';
+          const destPort = Number(opts.port) || (isTls ? 443 : 80);
+
+          SocksClient.createConnection({
+            proxy: {
+              host: components.host,
+              port: components.port,
+              type: socksType,
+              userId: components.username || undefined,
+              password: components.password || undefined,
+            },
+            command: 'connect',
+            destination: { host, port: destPort },
+          })
+            .then(({ socket }) => {
+              if (isTls) {
+                const tlsSocket = tls.connect(
+                  { socket, servername: opts.servername || host },
+                  () => callback(null, tlsSocket),
+                );
+                tlsSocket.on('error', (err) => callback(err, null));
+              } else {
+                callback(null, socket);
+              }
+            })
+            .catch((err) => callback(err, null));
+        },
+      });
+    }
+
+    // HTTP / HTTPS proxy → undici's native ProxyAgent (HTTP CONNECT tunnel)
+    const { ProxyAgent } = await import('undici');
+    return new ProxyAgent(normalized);
+  } catch (error) {
+    console.error('[ProxyManager] Error creating proxy dispatcher:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Build a Playwright launch `proxy` config from a raw proxy string.
+ * Supports http, https and socks5 (Playwright cannot authenticate SOCKS, and
+ * has no SOCKS4 support, so socks4 is best-effort routed as socks5).
+ * @param {string} rawProxy
+ * @returns {{server:string, username?:string, password?:string}|null}
+ */
+export function buildPlaywrightProxy(rawProxy) {
+  const normalized = parseProxyUrl(rawProxy);
+  if (!normalized) return null;
+
+  const components = parseProxyComponents(normalized);
+  if (!components || !components.host) return null;
+
+  const type = detectProxyType(normalized);
+  const isSocks = type === 'socks4' || type === 'socks5';
+  const scheme = isSocks ? 'socks5' : type === 'https' ? 'https' : 'http';
+
+  const proxy = {
+    server: `${scheme}://${components.host}${components.port ? `:${components.port}` : ''}`,
+  };
+  // Playwright only supports proxy authentication for HTTP(S), never SOCKS.
+  if (components.authenticated && !isSocks) {
+    proxy.username = components.username;
+    proxy.password = components.password;
+  }
+  return proxy;
+}
+
+// ──────────────────────────────────────────────────────────────
+// Connectivity check with geo lookup — the single "test proxy" routine
+// used by the /api/proxy/quick-check and /api/proxy/check endpoints and,
+// through them, the "Test" button that every tool shares.
+// ──────────────────────────────────────────────────────────────
+
+let _serverPublicIp = null;
+let _serverPublicIpFetchedAt = 0;
+
+/**
+ * Best-effort lookup of this server's own public IP (cached for 10 minutes).
+ * Used to prove that a proxied request actually egressed through the proxy
+ * (exit IP must differ from the server's direct IP).
+ */
+export async function getServerPublicIp() {
+  const TEN_MIN = 10 * 60 * 1000;
+  if (_serverPublicIp && Date.now() - _serverPublicIpFetchedAt < TEN_MIN) {
+    return _serverPublicIp;
+  }
+  try {
+    const res = await fetch('https://api.ipify.org?format=json', {
+      signal: AbortSignal.timeout(8000),
+    });
+    const data = await res.json();
+    _serverPublicIp = data?.ip || null;
+    _serverPublicIpFetchedAt = Date.now();
+  } catch {
+    _serverPublicIp = null;
+  }
+  return _serverPublicIp;
+}
+
+/**
+ * Geo-locate an IP address (country / city / ISP). Tries ipwho.is (https) first,
+ * then falls back to ip-api.com. Never throws — returns nulls on failure.
+ * @param {string} ip
+ */
+export async function lookupIpGeo(ip) {
+  const empty = { country: null, countryCode: null, city: null, isp: null };
+  if (!ip) return empty;
+
+  // Primary: ipwho.is (https, no key)
+  try {
+    const res = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    const d = await res.json();
+    if (d && d.success !== false) {
+      return {
+        country: d.country || null,
+        countryCode: d.country_code || null,
+        city: d.city || null,
+        isp: d.connection?.isp || d.connection?.org || null,
+      };
+    }
+  } catch {
+    /* fall through to fallback provider */
+  }
+
+  // Fallback: ip-api.com (http, no key)
+  try {
+    const res = await fetch(
+      `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,country,countryCode,city,isp`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    const d = await res.json();
+    if (d && d.status === 'success') {
+      return {
+        country: d.country || null,
+        countryCode: d.countryCode || null,
+        city: d.city || null,
+        isp: d.isp || null,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return empty;
+}
+
+/**
+ * Run a real connectivity test for a single proxy: send a request THROUGH the
+ * proxy to an IP-echo service, geo-locate the exit IP, and verify egress by
+ * comparing the exit IP to the server's own public IP.
+ *
+ * Works for HTTP/HTTPS/SOCKS4/SOCKS5 because it uses {@link proxyFetch}.
+ *
+ * @param {string} rawProxy
+ * @param {{ timeoutMs?: number, echoUrl?: string }} [opts]
+ * @returns {Promise<object>} unified result with a `proxy_info` payload
+ */
+export async function checkProxyConnectivity(rawProxy, opts = {}) {
+  const timeoutMs = opts.timeoutMs || 15000;
+  // Echo endpoint is overridable for tests; production uses a public IP echo.
+  const echoUrl = opts.echoUrl || 'https://api.ipify.org?format=json';
+  const normalized = parseProxyUrl(rawProxy);
+
+  if (!normalized) {
+    return {
+      success: false,
+      status: 'invalid_url',
+      reason: 'Proxy URL format is not recognised',
+      proxy_info: {
+        status: 'invalid',
+        type: null,
+        host: null,
+        port: null,
+        authenticated: false,
+      },
+    };
+  }
+
+  const components = parseProxyComponents(normalized);
+  const type = detectProxyType(normalized);
+
+  if (!components || !components.host || !components.port) {
+    return {
+      success: false,
+      status: 'invalid_url',
+      reason: 'Could not parse proxy host/port',
+      proxy_info: {
+        status: 'invalid',
+        type,
+        host: components?.host || null,
+        port: components?.port || null,
+        authenticated: components?.authenticated || false,
+      },
+    };
+  }
+
+  const startTime = Date.now();
+
+  try {
+    // 1) Route an IP-echo request THROUGH the proxy.
+    const res = await proxyFetch(echoUrl, normalized, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'User-Agent': 'VORTEX-ProxyCheck/1.0' },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const exitIp = data?.ip || data?.origin || null;
+    const responseTime = Date.now() - startTime;
+
+    // 2) Geo-locate the exit IP + fetch the server's own IP (in parallel).
+    const [geo, serverIp] = await Promise.all([
+      lookupIpGeo(exitIp),
+      getServerPublicIp(),
+    ]);
+
+    // 3) Egress verified when the observed exit IP differs from the server IP.
+    const egressVerified = !!(exitIp && serverIp && exitIp !== serverIp);
+
+    return {
+      success: true,
+      status: 'active',
+      proxy_info: {
+        status: 'active',
+        type,
+        host: components.host,
+        port: components.port,
+        authenticated: components.authenticated,
+        ip: exitIp,
+        country: geo.country,
+        countryCode: geo.countryCode,
+        city: geo.city,
+        isp: geo.isp,
+        responseTime,
+        egress_verified: egressVerified,
+        server_ip: serverIp,
+      },
+    };
+  } catch (error) {
+    // Native fetch wraps the real failure in `error.cause` and reports a
+    // generic "fetch failed" message, so unwrap it for a useful reason.
+    const cause = error.cause;
+    const code = error.code || cause?.code;
+    const rawMsg =
+      (error.message && error.message !== 'fetch failed' ? error.message : null) ||
+      cause?.message ||
+      error.message ||
+      'Connection failed';
+
+    const isTimeout =
+      error.name === 'TimeoutError' ||
+      code === 'UND_ERR_CONNECT_TIMEOUT' ||
+      code === 'ECONNABORTED' ||
+      code === 'ETIMEDOUT';
+    const isRefused = code === 'ECONNREFUSED' || /refused/i.test(rawMsg);
+    const isAuth =
+      code === 'ERR_PROXY_AUTH' ||
+      /407/.test(rawMsg) ||
+      /authentication|auth failed|not allowed/i.test(rawMsg);
+
+    let reason = rawMsg;
+    if (isTimeout) reason = 'Connection timed out';
+    else if (isRefused) reason = 'Connection refused — proxy server may be down or unreachable';
+    else if (isAuth) reason = 'Authentication failed — check username/password';
+
+    return {
+      success: false,
+      status: 'disconnected',
+      reason,
+      proxy_info: {
+        status: 'disconnected',
+        type,
+        host: components.host,
+        port: components.port,
+        authenticated: components.authenticated,
+        responseTime: Date.now() - startTime,
+      },
+    };
+  }
 }

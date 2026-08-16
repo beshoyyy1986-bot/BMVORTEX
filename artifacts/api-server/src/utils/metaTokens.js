@@ -17,13 +17,13 @@
  *   detectPlatform, extractFbDtsg, extractLsd, extractAccessToken, extractUserId
  */
 
-import { ProxyAgent } from 'undici';
 import {
   extractWithPlaywright,
   isPlaywrightAvailable,
   captureSessionWithPlaywright,
   cookieHeaderToPlaywrightCookies,
 } from './playwrightSession.js';
+import { createProxyDispatcher } from '../routes/utils/proxyManager.js';
 
 const FB_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -459,11 +459,14 @@ export function graphqlBody(params) {
   return new URLSearchParams(params).toString();
 }
 
-export function fbFetch(url, cookieHeader, extra = {}) {
+export async function fbFetch(url, cookieHeader, extra = {}) {
   const { proxy, ...rest } = extra;
   const opts = buildFbHeaders(cookieHeader, rest);
   if (proxy) {
-    opts.dispatcher = new ProxyAgent(proxy);
+    // Unified dispatcher — normalises the raw proxy string and supports
+    // HTTP/HTTPS/SOCKS4/SOCKS5, exactly like every other tool.
+    const dispatcher = await createProxyDispatcher(proxy);
+    if (dispatcher) opts.dispatcher = dispatcher;
   }
   return fetch(url, opts);
 }

@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { GrantPermissionsBody } from "@workspace/api-zod";
 // @ts-ignore — unified extraction used by all other tools (getSession/playwright-first)
 import { getSession } from "../utils/metaTokens.js";
+// @ts-ignore — unified proxy layer shared by every tool
+import { proxyFetch } from "./utils/proxyManager.js";
 
 const router: IRouter = Router();
 
@@ -82,13 +84,20 @@ router.post("/grant-permissions", async (req, res): Promise<void> => {
 
   const { cookies, businessId, userId } = parsed.data;
 
+  // Optional proxy — read straight off the raw body (the zod schema strips
+  // unknown keys) so this tool egresses through the same proxy as the rest.
+  const proxy: string | undefined =
+    typeof (req.body as Record<string, unknown>)?.proxy === "string"
+      ? ((req.body as Record<string, unknown>).proxy as string)
+      : undefined;
+
   // fb_dtsg / lsd are short-lived anti-CSRF tokens tied to the session,
   // so we pull them fresh from the cookies for every request.
   // Uses the same unified getSession() extractor as every other Meta tool.
   const sessionUrl = businessId
     ? `https://business.facebook.com/settings/people?business_id=${encodeURIComponent(businessId)}`
     : undefined;
-  const session = await getSession(cookies, sessionUrl);
+  const session = await getSession(cookies, sessionUrl, 20000, proxy);
 
   if (!session?.dtsg) {
     res.status(400).json({
@@ -127,7 +136,7 @@ router.post("/grant-permissions", async (req, res): Promise<void> => {
   });
 
   try {
-    const response = await fetch(`${origin}/api/graphql/`, {
+    const response = await proxyFetch(`${origin}/api/graphql/`, proxy, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
