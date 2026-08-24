@@ -1,7 +1,7 @@
 {
   "version": 2,
   "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/vortex run build",
-  "outputDirectory": "artifacts/vortex/dist/public",
+  "outputDirectory": "artifacts/vortex/dist",
   "functions": {
     "api/index.mjs": {
       "includeFiles": "artifacts/api-server/dist/**",
