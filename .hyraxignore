@@ -1,0 +1,10 @@
+# .hyraxignore — paths excluded from Hyrax audits.
+# Works like .gitignore: one pattern per line, # comments.
+# This file is yours — Hyrax will never overwrite it.
+# Auto-detected paths are in .hyrax/discovery/ignore (regenerated on publish).
+#
+# Examples:
+# generated/          # codegen output
+# proto/              # protobuf definitions
+# fixtures/           # test data
+# scripts/legacy/     # archived code
