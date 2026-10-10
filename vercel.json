@@ -1,8 +1,8 @@
 {
   "version": 2,
   "framework": "vite",
-  "buildCommand": "pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/vortex run build",
-  "outputDirectory": "artifacts/vortex/dist",
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "dist",
   "functions": {
     "api/index.mjs": {
       "includeFiles": "artifacts/api-server/dist/**",
